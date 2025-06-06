@@ -1,5 +1,5 @@
-// src/app.module.ts
 import { Module } from '@nestjs/common';
+import { ConfigModule } from '@nestjs/config';
 import { DatabaseConfigModule } from './config/database.config';
 import { AuthModule } from './modules/auth/auth.module';
 import { UsersModule } from './modules/users/users.module';
@@ -12,6 +12,7 @@ import { ScraperModule } from './modules/scraper/scraper.module';
 
 @Module({
   imports: [
+    ConfigModule.forRoot({ isGlobal: true }),
     DatabaseConfigModule,
     AuthModule,
     UsersModule,
