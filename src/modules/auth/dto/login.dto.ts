@@ -1,4 +1,5 @@
-// src/modules/auth/dto/login.dto.ts
+/* eslint-disable @typescript-eslint/no-unsafe-call */
+
 import { IsEmail, IsString } from 'class-validator';
 
 export class LoginDto {

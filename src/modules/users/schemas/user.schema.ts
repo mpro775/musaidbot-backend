@@ -1,9 +1,10 @@
 // src/modules/users/schemas/user.schema.ts
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { Document } from 'mongoose';
+import { Document, Types } from 'mongoose';
 import * as bcrypt from 'bcrypt';
 
-export type UserDocument = User & Document;
+export type UserDocument = Document<unknown, any, User> &
+  User & { _id: Types.ObjectId };
 
 @Schema({ timestamps: true })
 export class User {
