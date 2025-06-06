@@ -1,0 +1,38 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  build_and_deploy:
+    runs-on: ubuntu-latest
+
+    services:
+      mongo:
+        image: mongo:5.0
+        ports:
+          - 27017:27017
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+
+      - name: Install Dependencies
+        run: npm install
+
+      - name: Run Lint
+        run: npm run lint   # إذا أضفت سكريبت lint
+
+      - name: Run Tests
+        run: npm run test   # إذا أضفت سكريبت test
+
+      - name: Build
+        run: npm run build
+
+      - name: Docker Compose Up
+        run: docker-compose -f docker-compose.yml up -d --build
