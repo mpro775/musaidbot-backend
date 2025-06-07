@@ -1,7 +1,7 @@
 // src/modules/products/products.service.ts
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
 import { Product, ProductDocument } from './schemas/product.schema';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { ScrapeQueue } from './scrape.queue';
@@ -14,9 +14,17 @@ export class ProductsService {
     private readonly scrapeQueue: ScrapeQueue,
   ) {}
 
-  async create(data: Partial<Product>): Promise<ProductDocument> {
-    const created = new this.productModel(data);
-    return await created.save(); // ✅ الآن TypeScript يتعرف على ._id
+  async create(
+    data: Partial<Product> & { merchantId: string | Types.ObjectId },
+  ): Promise<ProductDocument> {
+    const dto = {
+      ...data,
+      merchantId:
+        typeof data.merchantId === 'string'
+          ? new Types.ObjectId(data.merchantId)
+          : data.merchantId,
+    };
+    return this.productModel.create(dto);
   }
 
   async enqueueScrapeJob(jobData: {

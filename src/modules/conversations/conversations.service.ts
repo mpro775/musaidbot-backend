@@ -1,11 +1,14 @@
 // src/modules/conversations/conversations.service.ts
-import { Injectable } from '@nestjs/common';
+
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model, Types } from 'mongoose';
+import { Model, Types, HydratedDocument } from 'mongoose';
 import {
   Conversation,
   ConversationDocument,
 } from './schemas/conversation.schema';
+import { CreateConversationDto } from './dto/create-conversation.dto';
+import { AddMessageDto } from './dto/add-message.dto';
 
 @Injectable()
 export class ConversationsService {
@@ -14,46 +17,58 @@ export class ConversationsService {
     private readonly conversationModel: Model<ConversationDocument>,
   ) {}
 
-  async findByMerchantAndCustomer(
-    merchantId: string,
-    customerNumber: string,
-  ): Promise<ConversationDocument | null> {
-    return this.conversationModel.findOne({
-      merchantId: new Types.ObjectId(merchantId),
-      userId: customerNumber,
+  /** إنشاء محادثة جديدة */
+  async create(
+    dto: CreateConversationDto,
+  ): Promise<HydratedDocument<Conversation>> {
+    const convo = new this.conversationModel({
+      merchantId: new Types.ObjectId(dto.merchantId),
+      userId: dto.userId,
+      messages: dto.messages.map((m) => ({
+        sender: m.sender,
+        text: m.text,
+        timestamp: m.timestamp ? new Date(m.timestamp) : new Date(),
+      })),
     });
+    return convo.save();
   }
 
-  async create(data: Partial<Conversation>): Promise<ConversationDocument> {
-    return this.conversationModel.create(data);
-  }
-
-  async addMessage(
-    conversationId: string,
-    message: { sender: string; text: string; timestamp: Date },
-  ): Promise<void> {
-    await this.conversationModel.updateOne(
-      { _id: new Types.ObjectId(conversationId) },
-      { $push: { messages: message } },
-    );
-  }
-  async ensureConversation(
+  /** جلب جميع المحادثات لتاجر */
+  async findAllByMerchant(
     merchantId: string,
-    customerNumber: string,
-  ): Promise<ConversationDocument> {
-    let convo = await this.conversationModel.findOne({
-      merchantId,
-      userId: customerNumber,
-    });
+  ): Promise<HydratedDocument<Conversation>[]> {
+    return this.conversationModel
+      .find({ merchantId: new Types.ObjectId(merchantId) })
+      .exec();
+  }
 
-    if (!convo) {
-      convo = await this.conversationModel.create({
-        merchantId,
-        userId: customerNumber,
-        messages: [],
-      });
-    }
-
+  /** جلب محادثة واحدة بالـ ID */
+  async findOne(id: string): Promise<HydratedDocument<Conversation>> {
+    const convo = await this.conversationModel.findById(id).exec();
+    if (!convo) throw new NotFoundException('Conversation not found');
     return convo;
+  }
+
+  /** إضافة رسالة وإرجاع المحادثة بعد التحديث */
+  async addMessage(
+    convoId: string,
+    messageDto: AddMessageDto,
+  ): Promise<HydratedDocument<Conversation>> {
+    const convo = await this.findOne(convoId);
+    convo.messages.push({
+      sender: messageDto.sender,
+      text: messageDto.text,
+      timestamp: messageDto.timestamp
+        ? new Date(messageDto.timestamp)
+        : new Date(),
+    });
+    return convo.save();
+  }
+
+  /** حذف المحادثة */
+  async remove(id: string): Promise<{ message: string }> {
+    const convo = await this.findOne(id);
+    await this.conversationModel.deleteOne({ _id: convo._id }).exec();
+    return { message: 'Conversation deleted successfully' };
   }
 }

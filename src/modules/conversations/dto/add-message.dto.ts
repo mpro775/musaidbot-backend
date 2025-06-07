@@ -1,11 +1,14 @@
-import { IsString, IsNotEmpty } from 'class-validator';
+// src/modules/conversations/dto/add-message.dto.ts
+import { IsString, IsDateString, IsOptional } from 'class-validator';
 
 export class AddMessageDto {
   @IsString()
-  @IsNotEmpty()
-  sender: string; // 'merchant' | 'user'
+  sender: 'customer' | 'bot';
 
   @IsString()
-  @IsNotEmpty()
   text: string;
+
+  @IsOptional()
+  @IsDateString()
+  timestamp?: string; // نأخذ String ISO ثم نحوّله في الـ Service
 }

@@ -6,6 +6,7 @@ import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
+import { Logger as PinoLogger } from 'nestjs-pino';
 
 async function bootstrap() {
   // أولًا: إنشاء تطبيق Nest
@@ -38,6 +39,7 @@ async function bootstrap() {
   app.useGlobalPipes(
     new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true }),
   );
+  app.useLogger(app.get(PinoLogger));
 
   // إضافة LoggingInterceptor لتسجيل معلومات الطلب
   app.useGlobalInterceptors(new LoggingInterceptor());
@@ -51,6 +53,32 @@ async function bootstrap() {
     .build();
   const document = SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('api/docs', app, document);
+  const shutdownSignals: NodeJS.Signals[] = ['SIGINT', 'SIGTERM'];
+
+  shutdownSignals.forEach((signal) =>
+    process.on(signal, () => {
+      console.log(`\n💤 Received ${signal}, shutting down gracefully...`);
+      // لا تُرجع promise داخل المصغرة؛ استخدم then()
+      app
+        .close()
+        .then(() => {
+          console.log('✅ HTTP server closed.');
+          process.exit(0);
+        })
+        .catch((err) => {
+          console.error('❌ Error during shutdown', err);
+          process.exit(1);
+        });
+    }),
+  );
+
+  app.use(
+    '/api/whatsapp/reply',
+    rateLimit({
+      windowMs: 1000, // 1 ثانية
+      max: 20, // 20 طلب/ثانية
+    }),
+  );
 
   // تشغيل الخادم
   const port = process.env.PORT || 5000;

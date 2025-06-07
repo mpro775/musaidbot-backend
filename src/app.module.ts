@@ -13,9 +13,19 @@ import { APP_GUARD } from '@nestjs/core';
 import { RolesGuard } from './common/guards/roles.guard';
 import { ResponseModule } from './modules/responses/response.module';
 import { WhatsappModule } from './modules/whatsapp/whatsapp.module';
+import { CacheModule } from '@nestjs/cache-manager';
+import * as redisStore from 'cache-manager-ioredis';
+import { PrometheusModule } from '@willsoto/nestjs-prometheus';
 
 @Module({
   imports: [
+    CacheModule.register({
+      store: redisStore,
+      host: process.env.REDIS_HOST,
+      port: process.env.REDIS_PORT,
+      ttl: 30, // ثواني
+    }),
+    PrometheusModule.register(),
     ConfigModule.forRoot({ isGlobal: true }),
     DatabaseConfigModule,
     AuthModule,

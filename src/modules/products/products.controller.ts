@@ -1,5 +1,3 @@
-// src/modules/products/products.controller.ts
-
 import {
   Controller,
   Get,
@@ -15,6 +13,7 @@ import {
 import { ProductsService } from './products.service';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
+import { ProductResponseDto } from './dto/product-response.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RequestWithUser } from '../../common/interfaces/request-with-user.interface';
 import {
@@ -23,167 +22,131 @@ import {
   ApiResponse,
   ApiBearerAuth,
   ApiParam,
+  ApiCreatedResponse,
+  ApiOkResponse,
 } from '@nestjs/swagger';
+import { Types } from 'mongoose';
 
 @ApiTags('Products')
+@ApiBearerAuth()
+@UseGuards(JwtAuthGuard)
 @Controller('products')
 export class ProductsController {
   constructor(private readonly productsService: ProductsService) {}
 
-  /**
-   * @api {post} /products إضافة منتج جديد للتاجر
-   * @apiName CreateProduct
-   * @apiGroup Products
-   *
-   * @apiHeader {String} Authorization توكن JWT من نوع Bearer (مخصَّص للتاجر).
-   *
-   * @apiParam {String} originalUrl الرابط الأصلي لصفحة المنتج.
-   * @apiParam {String} [name] اسم المنتج (اختياريّ).
-   * @apiParam {Number} [price] السعر المبدئي (اختياريّ).
-   * @apiParam {Boolean} [isAvailable] حالة التوفر (اختياريّ، افتراضيًّا true).
-   * @apiParam {String[]} [keywords] قائمة كلمات مفتاحية (اختياريّ).
-   *
-   * @apiSuccess {String} productId معرّف المنتج الجديد.
-   *
-   * @apiError (403) Forbidden عدم امتلاك دور MERCHANT أو ADMIN.
-   * @apiError (401) Unauthorized توكن JWT مفقود أو غير صالح.
-   */
-  @ApiBearerAuth()
+  @Post()
   @ApiOperation({ summary: 'Create a new product (for merchant)' })
-  @ApiResponse({
-    status: 201,
+  @ApiCreatedResponse({
     description: 'Product created and queued for scraping.',
+    type: ProductResponseDto,
   })
   @ApiResponse({ status: 403, description: 'Forbidden: Insufficient role.' })
-  @UseGuards(JwtAuthGuard)
-  @Post()
-  async create(@Request() req: RequestWithUser, @Body() dto: CreateProductDto) {
-    // فقط الدور MERCHANT أو ADMIN يُسمح له
+  async create(
+    @Request() req: RequestWithUser,
+    @Body() dto: CreateProductDto,
+  ): Promise<ProductResponseDto> {
     if (req.user.role !== 'MERCHANT' && req.user.role !== 'ADMIN') {
       throw new ForbiddenException('Insufficient role');
     }
+    const merchantId = req.user.merchantId!;
+    const merchantObjectId = new Types.ObjectId(merchantId);
 
-    const merchantId = req.user.merchantId;
-
-    // 1. إنشاء السجل الابتدائي للمنتج
     const productDoc = await this.productsService.create({
-      merchantId,
+      merchantId: merchantObjectId, // الآن متعلق بـ ObjectId لا بـ string
       originalUrl: dto.originalUrl,
-      name: dto.name || '',
-      price: dto.price || 0,
-      isAvailable: dto.isAvailable !== undefined ? dto.isAvailable : true,
-      keywords: dto.keywords || [],
+      name: dto.name ?? '',
+      price: dto.price ?? 0,
+      isAvailable: dto.isAvailable ?? true,
+      keywords: dto.keywords ?? [],
       errorState: 'queued',
     });
-
-    // الآن هذا مضمون ✅
     await this.productsService.enqueueScrapeJob({
-      productId: productDoc._id.toString(), // ✅ لن يظهر الخطأ الآن
+      productId: productDoc._id.toString(),
       url: dto.originalUrl,
       merchantId,
     });
-
-    return { productId: productDoc._id };
+    // حوّل returned document إلى DTO تلقائيًا
+    return {
+      _id: productDoc._id.toString(),
+      merchantId: productDoc.merchantId.toString(),
+      originalUrl: productDoc.originalUrl,
+      name: productDoc.name,
+      price: productDoc.price,
+      isAvailable: productDoc.isAvailable,
+      keywords: productDoc.keywords,
+    };
   }
 
-  /**
-   * @api {get} /products جلب جميع المنتجات الخاصة بالتاجر الحالي
-   * @apiName GetAllProducts
-   * @apiGroup Products
-   *
-   * @apiHeader {String} Authorization توكن JWT من نوع Bearer.
-   *
-   * @apiSuccess {Object[]} products قائمة المنتجات.
-   *
-   * @apiError (403) Forbidden عدم امتلاك دور MERCHANT أو ADMIN.
-   * @apiError (401) Unauthorized توكن JWT مفقود أو غير صالح.
-   */
-  @ApiBearerAuth()
-  @ApiOperation({ summary: 'Get all products for current merchant' })
-  @ApiResponse({ status: 200, description: 'List of products returned.' })
-  @UseGuards(JwtAuthGuard)
   @Get()
-  async findAll(@Request() req: RequestWithUser) {
+  @ApiOperation({ summary: 'Get all products for current merchant' })
+  @ApiOkResponse({
+    description: 'List of products returned.',
+    type: ProductResponseDto,
+    isArray: true,
+  })
+  @ApiResponse({ status: 403, description: 'Forbidden: Insufficient role.' })
+  async findAll(
+    @Request() req: RequestWithUser,
+  ): Promise<ProductResponseDto[]> {
     if (req.user.role !== 'MERCHANT' && req.user.role !== 'ADMIN') {
       throw new ForbiddenException('Insufficient role');
     }
-    return this.productsService.findAllByMerchant(req.user.merchantId);
+    const products = await this.productsService.findAllByMerchant(
+      req.user.merchantId!,
+    );
+    return products.map((p) => ({
+      _id: p._id.toString(),
+      merchantId: p.merchantId.toString(),
+      originalUrl: p.originalUrl,
+      name: p.name,
+      price: p.price,
+      isAvailable: p.isAvailable,
+      keywords: p.keywords,
+    }));
   }
 
-  /**
-   * @api {get} /products/:id جلب منتج واحد حسب معرّف
-   * @apiName GetProductById
-   * @apiGroup Products
-   *
-   * @apiHeader {String} Authorization توكن JWT من نوع Bearer.
-   * @apiParam {String} id معرّف المنتج.
-   *
-   * @apiSuccess {Object} product كائن المنتج المطلوب.
-   *
-   * @apiError (404) NotFound المنتج غير موجود.
-   * @apiError (403) Forbidden عدم امتلاك دور/ملكيّة مناسبة (MERCHANT أو ADMIN).
-   * @apiError (401) Unauthorized توكن JWT مفقود أو غير صالح.
-   */
-  @ApiBearerAuth()
-  @ApiParam({
-    name: 'id',
-    type: 'string',
-    description: 'Product ID',
-  })
-  @ApiOperation({ summary: 'Get a single product by ID' })
-  @ApiResponse({ status: 200, description: 'Product returned.' })
-  @ApiResponse({ status: 404, description: 'Product not found.' })
-  @UseGuards(JwtAuthGuard)
   @Get(':id')
-  async findOne(@Param('id') id: string, @Request() req: RequestWithUser) {
+  @ApiOperation({ summary: 'Get a single product by ID' })
+  @ApiParam({ name: 'id', type: 'string', description: 'Product ID' })
+  @ApiOkResponse({ type: ProductResponseDto, description: 'Product returned.' })
+  @ApiResponse({ status: 404, description: 'Product not found.' })
+  @ApiResponse({ status: 403, description: 'Forbidden: Not owner.' })
+  async findOne(
+    @Param('id') id: string,
+    @Request() req: RequestWithUser,
+  ): Promise<ProductResponseDto> {
     const product = await this.productsService.findOne(id);
-
-    // التحقّق من أنّ المنتج ينتمي لهذا التاجر أو أن المستخدم ADMIN
     if (
       req.user.role !== 'ADMIN' &&
       product.merchantId.toString() !== req.user.merchantId
     ) {
       throw new ForbiddenException('Not allowed');
     }
-    return product;
+    return {
+      _id: product._id.toString(),
+      merchantId: product.merchantId.toString(),
+      originalUrl: product.originalUrl,
+      name: product.name,
+      price: product.price,
+      isAvailable: product.isAvailable,
+      keywords: product.keywords,
+    };
   }
 
-  /**
-   * @api {put} /products/:id تحديث منتج (المالك فقط)
-   * @apiName UpdateProduct
-   * @apiGroup Products
-   *
-   * @apiHeader {String} Authorization توكن JWT من نوع Bearer.
-   * @apiParam {String} id معرّف المنتج.
-   * @apiParam {String} [name] الاسم الجديد (اختياري).
-   * @apiParam {Number} [price] السعر الجديد (اختياري).
-   * @apiParam {Boolean} [isAvailable] حالة التوفر الجديدة (اختياري).
-   * @apiParam {String[]} [keywords] كلمات مفتاحية جديدة (اختياري).
-   * @apiParam {String} [errorState] حالة الخطأ (اختياري).
-   * @apiParam {String[]} [images] روابط جديدة للصورة (اختياري).
-   *
-   * @apiSuccess {Object} product المنتج بعد التحديث.
-   *
-   * @apiError (404) NotFound المنتج غير موجود.
-   * @apiError (403) Forbidden عدم امتلاك دور/ملكيّة مناسبة.
-   * @apiError (401) Unauthorized توكن JWT مفقود أو غير صالح.
-   */
-  @ApiBearerAuth()
-  @ApiParam({
-    name: 'id',
-    type: 'string',
-    description: 'Product ID',
-  })
-  @ApiOperation({ summary: 'Update a product (owner only)' })
-  @ApiResponse({ status: 200, description: 'Product updated successfully.' })
-  @ApiResponse({ status: 404, description: 'Product not found.' })
-  @UseGuards(JwtAuthGuard)
   @Put(':id')
+  @ApiOperation({ summary: 'Update a product (owner only)' })
+  @ApiParam({ name: 'id', type: 'string', description: 'Product ID' })
+  @ApiOkResponse({
+    type: ProductResponseDto,
+    description: 'Product updated successfully.',
+  })
+  @ApiResponse({ status: 404, description: 'Product not found.' })
+  @ApiResponse({ status: 403, description: 'Forbidden: Not owner.' })
   async update(
     @Param('id') id: string,
     @Body() dto: UpdateProductDto,
     @Request() req: RequestWithUser,
-  ) {
+  ): Promise<ProductResponseDto> {
     const product = await this.productsService.findOne(id);
     if (
       req.user.role !== 'ADMIN' &&
@@ -191,35 +154,28 @@ export class ProductsController {
     ) {
       throw new ForbiddenException('Not allowed');
     }
-    return this.productsService.update(id, dto);
+    const updated = await this.productsService.update(id, dto);
+    return {
+      _id: updated._id.toString(),
+      merchantId: updated.merchantId.toString(),
+      originalUrl: updated.originalUrl,
+      name: updated.name,
+      price: updated.price,
+      isAvailable: updated.isAvailable,
+      keywords: updated.keywords,
+    };
   }
 
-  /**
-   * @api {delete} /products/:id حذف منتج
-   * @apiName DeleteProduct
-   * @apiGroup Products
-   *
-   * @apiHeader {String} Authorization توكن JWT من نوع Bearer.
-   * @apiParam {String} id معرّف المنتج.
-   *
-   * @apiSuccess {String} message رسالة نجاح الحذف.
-   *
-   * @apiError (404) NotFound المنتج غير موجود.
-   * @apiError (403) Forbidden عدم امتلاك دور/ملكيّة مناسبة.
-   * @apiError (401) Unauthorized توكن JWT مفقود أو غير صالح.
-   */
-  @ApiBearerAuth()
-  @ApiParam({
-    name: 'id',
-    type: 'string',
-    description: 'Product ID',
-  })
-  @ApiOperation({ summary: 'Delete a product' })
-  @ApiResponse({ status: 200, description: 'Product deleted successfully.' })
-  @ApiResponse({ status: 404, description: 'Product not found.' })
-  @UseGuards(JwtAuthGuard)
   @Delete(':id')
-  async remove(@Param('id') id: string, @Request() req: RequestWithUser) {
+  @ApiOperation({ summary: 'Delete a product' })
+  @ApiParam({ name: 'id', type: 'string', description: 'Product ID' })
+  @ApiOkResponse({ description: 'Product deleted successfully.' })
+  @ApiResponse({ status: 404, description: 'Product not found.' })
+  @ApiResponse({ status: 403, description: 'Forbidden: Not owner.' })
+  async remove(
+    @Param('id') id: string,
+    @Request() req: RequestWithUser,
+  ): Promise<{ message: string }> {
     const product = await this.productsService.findOne(id);
     if (
       req.user.role !== 'ADMIN' &&

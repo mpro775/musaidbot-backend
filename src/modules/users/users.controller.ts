@@ -7,6 +7,7 @@ import {
   Param,
   Body,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { CreateUserDto } from './dto/create-user.dto';
@@ -19,6 +20,7 @@ import {
   ApiBearerAuth,
   ApiParam,
 } from '@nestjs/swagger';
+import { CacheInterceptor } from '@nestjs/cache-manager';
 
 @ApiTags('Users')
 @Controller('users')
@@ -40,6 +42,7 @@ export class UsersController {
   @ApiOperation({ summary: 'Get all users' })
   @ApiResponse({ status: 200, description: 'List of users returned.' })
   @UseGuards(JwtAuthGuard)
+  @UseInterceptors(CacheInterceptor)
   @Get()
   findAll() {
     return this.usersService.findAll();

@@ -58,7 +58,10 @@ export class ScrapeQueue implements OnModuleInit {
           );
         }
       },
-      { connection: this.redisConfig.connection },
+      {
+        connection: this.redisConfig.connection,
+        concurrency: parseInt(process.env.SCRAPER_CONCURRENCY || '5', 10),
+      },
     );
   }
 
