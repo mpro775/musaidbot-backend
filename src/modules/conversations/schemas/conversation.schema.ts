@@ -1,32 +1,29 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { Document } from 'mongoose';
+import { Document, Types } from 'mongoose';
 
-export type ConversationDocument = Conversation & Document;
+export type ConversationDocument = Document &
+  Conversation & { _id: Types.ObjectId }; // ✅ هنا الإضافة المهمة
 
 class Message {
+  @Prop({ enum: ['customer', 'bot'], required: true })
   sender: string;
+
+  @Prop({ required: true })
   text: string;
+
+  @Prop({ required: true, default: () => new Date() })
   timestamp: Date;
 }
 
 @Schema({ timestamps: true })
 export class Conversation {
-  @Prop({ required: true })
-  merchantId: string;
+  @Prop({ type: Types.ObjectId, required: true })
+  merchantId: Types.ObjectId;
 
   @Prop({ required: true })
   userId: string;
 
-  @Prop({
-    type: [
-      {
-        sender: String,
-        text: String,
-        timestamp: Date,
-      },
-    ],
-    default: [],
-  })
+  @Prop({ type: [Message], default: [] })
   messages: Message[];
 }
 

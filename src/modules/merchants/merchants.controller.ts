@@ -218,4 +218,22 @@ export class MerchantsController {
     const isActive = await this.merchantsService.isSubscriptionActive(id);
     return { merchantId: id, subscriptionActive: isActive };
   }
+  /**
+   * @PATCH /merchants/upgrade
+   * يرقّي خطة التاجر (MERCHANT فقط)
+   * Body: { planName: 'basic' | 'pro' | 'enterprise' }
+   */
+  @UseGuards(JwtAuthGuard)
+  @Put('upgrade')
+  upgradePlan(
+    @Body('planName') planName: string,
+    @Request() req: RequestWithUser,
+  ) {
+    const user = req.user;
+    // فقط التاجر نفسه (role = MERCHANT) يمكنه ترقية خطته
+    if (user.role !== 'MERCHANT') {
+      throw new HttpException('Forbidden', HttpStatus.FORBIDDEN);
+    }
+    return this.merchantsService.upgradePlan(user.merchantId, planName);
+  }
 }

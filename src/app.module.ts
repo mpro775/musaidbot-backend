@@ -9,6 +9,10 @@ import { ConversationsModule } from './modules/conversations/conversations.modul
 import { PlansModule } from './modules/plans/plans.module';
 import { WebhooksModule } from './modules/webhooks/webhooks.module';
 import { ScraperModule } from './modules/scraper/scraper.module';
+import { APP_GUARD } from '@nestjs/core';
+import { RolesGuard } from './common/guards/roles.guard';
+import { ResponseModule } from './modules/responses/response.module';
+import { WhatsappModule } from './modules/whatsapp/whatsapp.module';
 
 @Module({
   imports: [
@@ -17,6 +21,9 @@ import { ScraperModule } from './modules/scraper/scraper.module';
     AuthModule,
     UsersModule,
     ProductsModule,
+    ResponseModule,
+    WhatsappModule,
+
     MerchantsModule,
     ConversationsModule,
     PlansModule,
@@ -24,6 +31,11 @@ import { ScraperModule } from './modules/scraper/scraper.module';
     ScraperModule,
   ],
   controllers: [],
-  providers: [],
+  providers: [
+    {
+      provide: APP_GUARD,
+      useClass: RolesGuard, // يفعل الـ RolesGuard على كل النقاط
+    },
+  ],
 })
 export class AppModule {}

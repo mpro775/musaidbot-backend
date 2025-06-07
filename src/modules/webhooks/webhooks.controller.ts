@@ -5,6 +5,7 @@ import {
   Param,
   UseGuards,
   Request,
+  BadRequestException,
 } from '@nestjs/common';
 import { WebhooksService } from './webhooks.service';
 import { HandleWebhookDto } from './dto/handle-webhook.dto';
@@ -17,6 +18,7 @@ import {
   ApiBearerAuth,
   ApiParam,
 } from '@nestjs/swagger';
+import { ApiKeyGuard } from 'src/common/guards/api-key.guard';
 
 @ApiTags('Webhooks')
 @Controller('webhook')
@@ -60,5 +62,18 @@ export class WebhooksController {
   ) {
     // تحويل الحمولة إلى كائن موحّد أو التحقق من صلاحيات إضافية إذا أردت
     return this.webhooksService.handleEvent(eventType, handleDto.payload || {});
+  }
+  @UseGuards(ApiKeyGuard)
+  @Post('whatsapp_incoming')
+  async handleWhatsappWebhook(@Body() payload: any) {
+    const { merchantId, from, messageText } = payload;
+    if (!merchantId || !from || !messageText) {
+      throw new BadRequestException('Missing fields');
+    }
+    return this.webhooksService.handleEvent('whatsapp_incoming', {
+      merchantId,
+      from,
+      messageText,
+    });
   }
 }

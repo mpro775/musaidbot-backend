@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { Merchant, MerchantDocument } from './schemas/merchant.schema';
@@ -61,5 +65,21 @@ export class MerchantsService {
     newDate.setDate(newDate.getDate() + extraDays);
     merchant.subscriptionExpiresAt = newDate;
     return await merchant.save(); // ✅ بدون تحذير
+  }
+
+  async upgradePlan(merchantId: string, planName: string): Promise<Merchant> {
+    const merchant = await this.findOne(merchantId);
+    // نفترض أن الخطط المدعومة هي: 'free', 'basic', 'pro'
+    const now = Date.now();
+    let addedDays = 0;
+    if (planName === 'basic') addedDays = 30;
+    else if (planName === 'pro') addedDays = 365;
+    else throw new BadRequestException('Invalid plan name');
+
+    merchant.planName = planName;
+    merchant.subscriptionExpiresAt = new Date(
+      now + addedDays * 24 * 60 * 60 * 1000,
+    );
+    return merchant.save();
   }
 }

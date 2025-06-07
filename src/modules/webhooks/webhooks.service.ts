@@ -1,24 +1,27 @@
-import { Injectable } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
-import { Webhook, WebhookDocument } from './schemas/webhook.schema';
-import { WebhookPayload } from 'src/common/interfaces/webhook-payload.interface';
+// src/modules/webhooks/webhooks.service.ts
+import { Injectable, BadRequestException } from '@nestjs/common';
+import { WhatsappService } from '../whatsapp/whatsapp.service';
 
 @Injectable()
 export class WebhooksService {
-  constructor(
-    @InjectModel(Webhook.name) private webhookModel: Model<WebhookDocument>,
-  ) {}
+  constructor(private readonly whatsappService: WhatsappService) {}
 
-  async handleEvent(
-    eventType: string,
-    payload: WebhookPayload,
-  ): Promise<Webhook> {
-    const webhook = new this.webhookModel({ eventType, payload });
-    await webhook.save();
-    return webhook;
-  }
-  async findAll(): Promise<Webhook[]> {
-    return await this.webhookModel.find().exec();
+  async handleEvent(eventType: string, payload: any) {
+    if (eventType === 'whatsapp_incoming') {
+      const { merchantId, from, messageText } = payload;
+      if (!merchantId || !from || !messageText) {
+        throw new BadRequestException('Invalid payload for whatsapp_incoming');
+      }
+
+      const replyText = await this.whatsappService.handleIncoming(
+        merchantId,
+        from,
+        messageText,
+      );
+      return { replyText };
+    }
+
+    // إن وُجدت أحداث أخرى لاحقًا
+    return { message: 'Event type not supported' };
   }
 }

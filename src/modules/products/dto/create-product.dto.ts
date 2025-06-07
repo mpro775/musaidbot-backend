@@ -1,18 +1,33 @@
 // src/modules/products/dto/create-product.dto.ts
-import { IsString, IsNumber, IsBoolean, IsOptional } from 'class-validator';
+import {
+  IsString,
+  IsNotEmpty,
+  IsOptional,
+  IsArray,
+  IsNumber,
+  IsBoolean,
+  IsString as _IsString,
+} from 'class-validator';
 
 export class CreateProductDto {
   @IsString()
-  name: string;
-
-  @IsNumber()
-  price: number;
+  @IsNotEmpty()
+  originalUrl: string;
 
   @IsOptional()
   @IsString()
-  description?: string;
+  name?: string;
 
-  @IsBoolean()
   @IsOptional()
+  @IsNumber()
+  price?: number;
+
+  @IsOptional()
+  @IsBoolean()
   isAvailable?: boolean;
+
+  @IsOptional()
+  @IsArray()
+  @_IsString({ each: true })
+  keywords?: string[];
 }

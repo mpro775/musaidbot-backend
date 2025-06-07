@@ -1,10 +1,8 @@
 // src/modules/users/schemas/user.schema.ts
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Types } from 'mongoose';
-import * as bcrypt from 'bcrypt';
 
-export type UserDocument = Document<unknown, any, User> &
-  User & { _id: Types.ObjectId };
+export type UserDocument = User & Document;
 
 @Schema({ timestamps: true })
 export class User {
@@ -17,16 +15,19 @@ export class User {
   @Prop({ required: true })
   name: string;
 
-  @Prop({ default: 'USER' })
-  role: string; // USER | MERCHANT | ADMIN
+  @Prop({ required: true })
+  phone: string;
+
+  @Prop({
+    type: String,
+    enum: ['MERCHANT', 'ADMIN', 'MEMBER'],
+    default: 'MEMBER',
+  })
+  role: 'MERCHANT' | 'ADMIN' | 'MEMBER';
+
+  // حقل رابط للـ Merchant (اختياريّ لأنه قد يكون ليس كل User تاجرًا)
+  @Prop({ type: Types.ObjectId, ref: 'Merchant' })
+  merchantId?: Types.ObjectId;
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);
-
-// Hash password before saving
-UserSchema.pre<UserDocument>('save', async function (next) {
-  if (!this.isModified('password')) return next();
-  const salt = await bcrypt.genSalt();
-  this.password = await bcrypt.hash(this.password, salt);
-  next();
-});
