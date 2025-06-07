@@ -1,15 +1,14 @@
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
-import { Webhook, WebhookSchema } from './schemas/webhook.schema';
 import { WebhooksService } from './webhooks.service';
-import { WebhooksController } from './webhooks.controller';
+import { Webhook, WebhookSchema } from './schemas/webhook.schema';
+import { WhatsappService } from '../whatsapp/whatsapp.service';
 
 @Module({
   imports: [
     MongooseModule.forFeature([{ name: Webhook.name, schema: WebhookSchema }]),
   ],
-  providers: [WebhooksService],
-  controllers: [WebhooksController],
+  providers: [WebhooksService, WhatsappService],
   exports: [WebhooksService],
 })
 export class WebhooksModule {}

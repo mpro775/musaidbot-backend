@@ -59,10 +59,20 @@ export class AuthService {
     await userDoc.save();
 
     // 6. إنشاء توقيع JWT وإرجاعه
-    const payload = { sub: userDoc._id, role: userDoc.role };
+    const payload = {
+      userId: userDoc._id,
+      role: userDoc.role,
+      merchantId: createdMerchant._id, // ✅ نضيف معرف التاجر هنا
+    };
+
     return {
       accessToken: this.jwtService.sign(payload),
-      user: { userId: userDoc._id, email: userDoc.email, role: userDoc.role },
+      user: {
+        userId: userDoc._id,
+        email: userDoc.email,
+        role: userDoc.role,
+        merchantId: createdMerchant._id,
+      },
     };
   }
 
@@ -74,7 +84,23 @@ export class AuthService {
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) throw new BadRequestException('Invalid credentials');
 
-    const payload = { sub: user._id, role: user.role };
-    return { accessToken: this.jwtService.sign(payload) };
+    // تحميل التاجر المرتبط بهذا المستخدم
+    const merchant = await this.merchantModel.findOne({ userId: user._id });
+
+    const payload = {
+      userId: user._id,
+      role: user.role,
+      merchantId: merchant?._id || null, // ✅ نضمن merchantId أو null
+    };
+
+    return {
+      accessToken: this.jwtService.sign(payload),
+      user: {
+        userId: user._id,
+        email: user.email,
+        role: user.role,
+        merchantId: merchant?._id || null,
+      },
+    };
   }
 }

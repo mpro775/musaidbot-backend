@@ -3,13 +3,16 @@ import { Document } from 'mongoose';
 
 export type WebhookDocument = Webhook & Document;
 
-@Schema({ timestamps: true })
+@Schema()
 export class Webhook {
   @Prop({ required: true })
   eventType: string;
 
-  @Prop({ type: Object, default: {} })
-  payload: any;
+  @Prop({ required: true })
+  payload: string;
+
+  @Prop({ default: Date.now })
+  receivedAt: Date;
 }
 
 export const WebhookSchema = SchemaFactory.createForClass(Webhook);

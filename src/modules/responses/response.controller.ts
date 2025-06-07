@@ -9,6 +9,7 @@ import {
   Patch,
   UseGuards,
   Request,
+  BadRequestException,
 } from '@nestjs/common';
 import { ResponseService } from './response.service';
 import { CreateResponseDto } from './dto/create-response.dto';
@@ -24,6 +25,10 @@ export class ResponseController {
   @UseGuards(JwtAuthGuard)
   @Get()
   async findAll(@Request() req: RequestWithUser) {
+    if (!req.user.merchantId) {
+      throw new BadRequestException('Missing merchantId in token');
+    }
+
     return this.responseService.findAll(req.user.merchantId);
   }
 
@@ -34,6 +39,10 @@ export class ResponseController {
     @Request() req: RequestWithUser,
     @Body() dto: CreateResponseDto,
   ) {
+    if (!req.user.merchantId) {
+      throw new BadRequestException('Missing merchantId in token');
+    }
+
     return this.responseService.create(req.user.merchantId, dto);
   }
 
@@ -49,13 +58,13 @@ export class ResponseController {
     // const resp = await this.responseService.findById(id);
     // if (resp.merchantId.toString() !== req.user.merchantId) throw new ForbiddenException();
     console.log(req);
-    return this.responseService.update(id, dto);
+    return this.responseService.update(id, dto, req.user.merchantId!);
   }
 
   // حذف ردّ
   @UseGuards(JwtAuthGuard)
   @Delete(':id')
-  async remove(@Param('id') id: string) {
-    return this.responseService.remove(id);
+  async remove(@Param('id') id: string, @Request() req: RequestWithUser) {
+    return this.responseService.remove(id, req.user.merchantId!);
   }
 }

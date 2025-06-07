@@ -24,6 +24,11 @@ export class CreateMerchantDto {
   logoUrl?: string;
 
   @IsString()
+  userId: string; // إذا كنت ستربطه بمستخدم
+
+  @IsString()
+  whatsappNumber: string;
+  @IsString()
   @IsOptional()
   address?: string;
 }

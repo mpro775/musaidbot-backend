@@ -37,17 +37,34 @@ export class ResponseService {
     return created;
   }
 
-  async update(id: string, dto: UpdateResponseDto) {
-    const updated = await this.responseModel.findByIdAndUpdate(id, dto, {
-      new: true,
-    });
-    if (!updated) throw new NotFoundException('Response not found');
-    return updated;
+  async update(id: string, dto: UpdateResponseDto, merchantId: string) {
+    const response = await this.responseModel.findById(id);
+    if (!response) throw new NotFoundException('Response not found');
+
+    // ✅ تحقق من الملكية
+    if (response.merchantId.toString() !== merchantId) {
+      throw new BadRequestException(
+        'You are not allowed to modify this response',
+      );
+    }
+
+    response.keyword = dto.keyword ?? response.keyword;
+    response.replyText = dto.replyText ?? response.replyText;
+    return await response.save();
   }
 
-  async remove(id: string) {
-    const deleted = await this.responseModel.findByIdAndDelete(id).exec();
-    if (!deleted) throw new NotFoundException('Response not found');
+  async remove(id: string, merchantId: string) {
+    const response = await this.responseModel.findById(id);
+    if (!response) throw new NotFoundException('Response not found');
+
+    // ✅ تحقق من الملكية
+    if (response.merchantId.toString() !== merchantId) {
+      throw new BadRequestException(
+        'You are not allowed to delete this response',
+      );
+    }
+
+    await response.deleteOne();
     return { message: 'Deleted successfully' };
   }
 }

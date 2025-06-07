@@ -5,5 +5,6 @@ export interface RequestWithUser extends Request {
     userId: string;
     role: string;
     [key: string]: any;
+    merchantId?: string; // ✅ لتسهيل الوصول لاحقًا
   };
 }
