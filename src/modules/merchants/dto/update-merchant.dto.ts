@@ -1,23 +1,4 @@
-import { IsString, IsOptional, IsUrl, IsEmail } from 'class-validator';
+import { PartialType } from '@nestjs/swagger';
+import { CreateMerchantDto } from './create-merchant.dto';
 
-export class UpdateMerchantDto {
-  @IsOptional()
-  @IsString()
-  name?: string;
-
-  @IsOptional()
-  @IsEmail()
-  email?: string;
-
-  @IsOptional()
-  @IsString()
-  phone?: string;
-
-  @IsOptional()
-  @IsUrl()
-  logoUrl?: string;
-
-  @IsOptional()
-  @IsString()
-  address?: string;
-}
+export class UpdateMerchantDto extends PartialType(CreateMerchantDto) {}

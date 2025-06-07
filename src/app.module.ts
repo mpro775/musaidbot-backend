@@ -16,6 +16,7 @@ import { WhatsappModule } from './modules/whatsapp/whatsapp.module';
 import { CacheModule } from '@nestjs/cache-manager';
 import * as redisStore from 'cache-manager-ioredis';
 import { PrometheusModule } from '@willsoto/nestjs-prometheus';
+import configuration from './configuration';
 
 @Module({
   imports: [
@@ -24,6 +25,10 @@ import { PrometheusModule } from '@willsoto/nestjs-prometheus';
       host: process.env.REDIS_HOST,
       port: process.env.REDIS_PORT,
       ttl: 30, // ثواني
+    }),
+    ConfigModule.forRoot({
+      isGlobal: true,
+      load: [configuration],
     }),
     PrometheusModule.register(),
     ConfigModule.forRoot({ isGlobal: true }),

@@ -2,16 +2,18 @@ import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { Merchant, MerchantSchema } from './schemas/merchant.schema';
 import { MerchantsService } from './merchants.service';
-import { MerchantsController } from './merchants.controller';
+import { WhatsappModule } from '../whatsapp/whatsapp.module';
+import { TemplatesModule } from '../templates/templates.module';
 
 @Module({
   imports: [
     MongooseModule.forFeature([
       { name: Merchant.name, schema: MerchantSchema },
     ]),
+    TemplatesModule,
+    WhatsappModule,
   ],
   providers: [MerchantsService],
-  controllers: [MerchantsController],
-  exports: [MerchantsService], // إذا احتاج أي Module آخر خدمة التجار
+  exports: [MerchantsService],
 })
 export class MerchantsModule {}

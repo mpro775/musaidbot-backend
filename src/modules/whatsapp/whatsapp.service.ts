@@ -14,6 +14,9 @@ import {
 } from '../merchants/schemas/merchant.schema';
 import axios from 'axios';
 
+export interface WhatsAppSendResponse {
+  messageId: string;
+}
 @Injectable()
 export class WhatsappService {
   private readonly logger = new Logger(WhatsappService.name);
@@ -88,7 +91,7 @@ export class WhatsappService {
       merchantId,
       from,
     );
-    const convoId = convo._id.toString(); // ✅ بدون أي `as`
+    const convoId = (convo._id as Types.ObjectId).toString();
 
     await this.conversationService.addMessage(convoId, {
       sender: 'customer',
@@ -106,5 +109,32 @@ export class WhatsappService {
     }
 
     return replyText;
+  }
+  async send(
+    config: { token: string; number: string },
+    to: string,
+    text: string,
+  ): Promise<WhatsAppSendResponse> {
+    const response = await axios.post(
+      `https://graph.facebook.com/v15.0/${config.number}/messages`,
+      {
+        messaging_product: 'whatsapp',
+        to,
+        text: { body: text },
+      },
+      {
+        headers: { Authorization: `Bearer ${config.token}` },
+      },
+    );
+
+    // Mongoose response.data.messages is مصفوفة، نأخذ العنصر الأول
+    const messageId = response.data?.messages?.[0]?.id;
+    if (!messageId) {
+      throw new Error(
+        'Failed to retrieve messageId from WhatsApp API response',
+      );
+    }
+
+    return { messageId };
   }
 }

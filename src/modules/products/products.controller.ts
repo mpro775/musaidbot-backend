@@ -9,6 +9,8 @@ import {
   UseGuards,
   Request,
   ForbiddenException,
+  HttpStatus,
+  HttpCode,
 } from '@nestjs/common';
 import { ProductsService } from './products.service';
 import { CreateProductDto } from './dto/create-product.dto';
@@ -18,16 +20,19 @@ import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RequestWithUser } from '../../common/interfaces/request-with-user.interface';
 import {
   ApiTags,
-  ApiOperation,
-  ApiResponse,
   ApiBearerAuth,
+  ApiOperation,
   ApiParam,
+  ApiBody,
   ApiCreatedResponse,
   ApiOkResponse,
+  ApiUnauthorizedResponse,
+  ApiForbiddenResponse,
+  ApiNotFoundResponse,
 } from '@nestjs/swagger';
 import { Types } from 'mongoose';
 
-@ApiTags('Products')
+@ApiTags('المنتجات')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard)
 @Controller('products')
@@ -35,12 +40,17 @@ export class ProductsController {
   constructor(private readonly productsService: ProductsService) {}
 
   @Post()
-  @ApiOperation({ summary: 'Create a new product (for merchant)' })
+  @ApiOperation({ summary: 'إنشاء منتج جديد (للتاجر)' })
+  @ApiBody({ type: CreateProductDto, description: 'بيانات إنشاء المنتج' })
   @ApiCreatedResponse({
-    description: 'Product created and queued for scraping.',
+    description: 'تم إنشاء المنتج ووضعه في قائمة الانتظار للمعالجة',
     type: ProductResponseDto,
   })
-  @ApiResponse({ status: 403, description: 'Forbidden: Insufficient role.' })
+  @ApiForbiddenResponse({ description: 'ممنوع: دور المستخدم غير كافٍ' })
+  @ApiUnauthorizedResponse({
+    description: 'غير مصرح: توكن JWT غير صالح أو مفقود',
+  })
+  @HttpCode(HttpStatus.CREATED)
   async create(
     @Request() req: RequestWithUser,
     @Body() dto: CreateProductDto,
@@ -52,7 +62,7 @@ export class ProductsController {
     const merchantObjectId = new Types.ObjectId(merchantId);
 
     const productDoc = await this.productsService.create({
-      merchantId: merchantObjectId, // الآن متعلق بـ ObjectId لا بـ string
+      merchantId: merchantObjectId,
       originalUrl: dto.originalUrl,
       name: dto.name ?? '',
       price: dto.price ?? 0,
@@ -65,7 +75,6 @@ export class ProductsController {
       url: dto.originalUrl,
       merchantId,
     });
-    // حوّل returned document إلى DTO تلقائيًا
     return {
       _id: productDoc._id.toString(),
       merchantId: productDoc.merchantId.toString(),
@@ -78,13 +87,16 @@ export class ProductsController {
   }
 
   @Get()
-  @ApiOperation({ summary: 'Get all products for current merchant' })
+  @ApiOperation({ summary: 'جلب جميع المنتجات للتاجر الحالي' })
   @ApiOkResponse({
-    description: 'List of products returned.',
+    description: 'تم إرجاع قائمة المنتجات بنجاح',
     type: ProductResponseDto,
     isArray: true,
   })
-  @ApiResponse({ status: 403, description: 'Forbidden: Insufficient role.' })
+  @ApiForbiddenResponse({ description: 'ممنوع: دور المستخدم غير كافٍ' })
+  @ApiUnauthorizedResponse({
+    description: 'غير مصرح: توكن JWT غير صالح أو مفقود',
+  })
   async findAll(
     @Request() req: RequestWithUser,
   ): Promise<ProductResponseDto[]> {
@@ -106,11 +118,17 @@ export class ProductsController {
   }
 
   @Get(':id')
-  @ApiOperation({ summary: 'Get a single product by ID' })
-  @ApiParam({ name: 'id', type: 'string', description: 'Product ID' })
-  @ApiOkResponse({ type: ProductResponseDto, description: 'Product returned.' })
-  @ApiResponse({ status: 404, description: 'Product not found.' })
-  @ApiResponse({ status: 403, description: 'Forbidden: Not owner.' })
+  @ApiParam({ name: 'id', type: 'string', description: 'معرّف المنتج' })
+  @ApiOperation({ summary: 'جلب منتج واحد حسب المعرّف' })
+  @ApiOkResponse({
+    description: 'تم إرجاع بيانات المنتج بنجاح',
+    type: ProductResponseDto,
+  })
+  @ApiNotFoundResponse({ description: 'المنتج غير موجود' })
+  @ApiForbiddenResponse({ description: 'ممنوع: ليس مالك المنتج' })
+  @ApiUnauthorizedResponse({
+    description: 'غير مصرح: توكن JWT غير صالح أو مفقود',
+  })
   async findOne(
     @Param('id') id: string,
     @Request() req: RequestWithUser,
@@ -134,14 +152,15 @@ export class ProductsController {
   }
 
   @Put(':id')
-  @ApiOperation({ summary: 'Update a product (owner only)' })
-  @ApiParam({ name: 'id', type: 'string', description: 'Product ID' })
+  @ApiParam({ name: 'id', type: 'string', description: 'معرّف المنتج' })
+  @ApiOperation({ summary: 'تحديث منتج (لصاحب المنتج فقط)' })
+  @ApiBody({ type: UpdateProductDto, description: 'الحقول المراد تحديثها' })
   @ApiOkResponse({
+    description: 'تم تحديث المنتج بنجاح',
     type: ProductResponseDto,
-    description: 'Product updated successfully.',
   })
-  @ApiResponse({ status: 404, description: 'Product not found.' })
-  @ApiResponse({ status: 403, description: 'Forbidden: Not owner.' })
+  @ApiNotFoundResponse({ description: 'المنتج غير موجود' })
+  @ApiForbiddenResponse({ description: 'ممنوع: ليس مالك المنتج' })
   async update(
     @Param('id') id: string,
     @Body() dto: UpdateProductDto,
@@ -167,11 +186,11 @@ export class ProductsController {
   }
 
   @Delete(':id')
-  @ApiOperation({ summary: 'Delete a product' })
-  @ApiParam({ name: 'id', type: 'string', description: 'Product ID' })
-  @ApiOkResponse({ description: 'Product deleted successfully.' })
-  @ApiResponse({ status: 404, description: 'Product not found.' })
-  @ApiResponse({ status: 403, description: 'Forbidden: Not owner.' })
+  @ApiParam({ name: 'id', type: 'string', description: 'معرّف المنتج' })
+  @ApiOperation({ summary: 'حذف منتج' })
+  @ApiOkResponse({ description: 'تم حذف المنتج بنجاح' })
+  @ApiNotFoundResponse({ description: 'المنتج غير موجود' })
+  @ApiForbiddenResponse({ description: 'ممنوع: ليس مالك المنتج' })
   async remove(
     @Param('id') id: string,
     @Request() req: RequestWithUser,
@@ -186,3 +205,10 @@ export class ProductsController {
     return this.productsService.remove(id);
   }
 }
+
+/**
+ * النواقص:
+ * - إضافة @ApiUnauthorizedResponse على جميع النقاط التي تتطلب التوكن.
+ * - يمكن إضافة أمثلة JSON في ApiCreatedResponse وApiOkResponse باستخدام schema.example.
+ * - توصيف Response DTO (ProductResponseDto) بشكل منفصل لعرض الحقول والتنسيق.
+ */

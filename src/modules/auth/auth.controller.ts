@@ -1,4 +1,12 @@
-import { Controller, Post, Body, UseGuards, Request } from '@nestjs/common';
+import {
+  Controller,
+  Post,
+  Body,
+  UseGuards,
+  Request,
+  HttpCode,
+  HttpStatus,
+} from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
@@ -7,81 +15,74 @@ import { RequestWithUser } from 'src/common/interfaces/request-with-user.interfa
 import {
   ApiTags,
   ApiOperation,
-  ApiResponse,
   ApiBearerAuth,
+  ApiBody,
+  ApiCreatedResponse,
+  ApiOkResponse,
+  ApiBadRequestResponse,
+  ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
 
-@ApiTags('Authentication')
+@ApiTags('المصادقة')
 @Controller('auth')
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
-  /**
-   * @api {post} /auth/register تسجيل مستخدم جديد
-   * @apiName Register
-   * @apiGroup Authentication
-   *
-   * @apiParam {String} email ايميل المستخدم (يجب أن يكون فريدًا).
-   * @apiParam {String} password كلمة المرور (على الأقل 6 أحرف).
-   * @apiParam {String} name اسم المستخدم (على الأقل 3 أحرف).
-   *
-   * @apiSuccess {String} message رسالة نجاح التسجيل.
-   *
-   * @apiError (400) BadRequest خطأ في حقول الإدخال (Validation).
-   * @apiError (401) Unauthorized الايميل مستخدم مسبقًا.
-   */
-  @ApiOperation({ summary: 'Register a new user' })
-  @ApiResponse({ status: 201, description: 'User registered successfully.' })
-  @ApiResponse({ status: 400, description: 'Bad Request.' })
   @Post('register')
+  @ApiOperation({ summary: 'تسجيل مستخدم جديد' })
+  @ApiBody({
+    type: RegisterDto,
+    description: 'بيانات التسجيل: البريد الإلكتروني، كلمة المرور، الاسم',
+  })
+  @ApiCreatedResponse({ description: 'تم تسجيل المستخدم بنجاح' })
+  @ApiBadRequestResponse({
+    description: 'طلب غير صالح: بيانات مفقودة أو تنسيق خاطئ',
+  })
+  @ApiUnauthorizedResponse({ description: 'البريد الإلكتروني مستخدم مسبقًا' })
+  @HttpCode(HttpStatus.CREATED)
   register(@Body() registerDto: RegisterDto) {
     return this.authService.register(registerDto);
   }
 
-  /**
-   * @api {post} /auth/login تسجيل الدخول والحصول على توكن JWT
-   * @apiName Login
-   * @apiGroup Authentication
-   *
-   * @apiParam {String} email ايميل المستخدم.
-   * @apiParam {String} password كلمة المرور.
-   *
-   * @apiSuccess {String} accessToken التوكن المستخدم لتأمين النقاط المحمية.
-   *
-   * @apiError (401) Unauthorized بيانات الاعتماد غير صحيحة.
-   */
-  @ApiOperation({ summary: 'Login and return JWT access token' })
-  @ApiResponse({
-    status: 200,
-    description: 'Login successful, token returned.',
-  })
-  @ApiResponse({
-    status: 401,
-    description: 'Unauthorized: Invalid credentials.',
-  })
   @Post('login')
+  @ApiOperation({ summary: 'تسجيل الدخول وإرجاع توكن JWT' })
+  @ApiBody({
+    type: LoginDto,
+    description: 'بيانات الاعتماد: البريد الإلكتروني وكلمة المرور',
+  })
+  @ApiOkResponse({
+    description: 'تم تسجيل الدخول بنجاح وتم إرجاع التوكن',
+    schema: { example: { accessToken: 'jwt-token-here' } },
+  })
+  @ApiUnauthorizedResponse({ description: 'بيانات الاعتماد غير صحيحة' })
   login(@Body() loginDto: LoginDto) {
     return this.authService.login(loginDto);
   }
 
-  /**
-   * @api {post} /auth/profile جلب بيانات المستخدم المحميّة
-   * @apiName GetProfile
-   * @apiGroup Authentication
-   *
-   * @apiHeader {String} Authorization توكن JWT (Bearer).
-   *
-   * @apiSuccess {Object} user كائن يحتوي على بيانات المستخدم (userId و role).
-   *
-   * @apiError (401) Unauthorized يجب توفير توكن JWT صالح.
-   */
-  @ApiBearerAuth()
-  @ApiOperation({ summary: 'Get current user profile (protected)' })
-  @ApiResponse({ status: 200, description: 'User profile returned.' })
-  @ApiResponse({ status: 401, description: 'Unauthorized.' })
-  @UseGuards(JwtAuthGuard)
   @Post('profile')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'جلب بيانات المستخدم الحالي (محمي)' })
+  @ApiOkResponse({
+    description: 'تم إرجاع ملف المستخدم',
+    schema: {
+      example: {
+        userId: '123',
+        email: 'user@example.com',
+        name: 'اسم المستخدم',
+        role: 'user',
+      },
+    },
+  })
+  @ApiUnauthorizedResponse({ description: 'توكن JWT مفقود أو غير صالح' })
   getProfile(@Request() req: RequestWithUser) {
     return req.user;
   }
 }
+
+/**
+ * النواقص:
+ * - يمكن إضافة @ApiForbiddenResponse إذا كان هناك تمييز في الصلاحيات.
+ * - توثيق الحقول الدقيقة في RegisterDto وLoginDto (الحد الأدنى للطول، القواعد).
+ * - توضيح حالة إعادة إرسال رابط التفعيل أو إعادة تعيين كلمة المرور.
+ */

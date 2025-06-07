@@ -1,14 +1,15 @@
 // src/modules/conversations/dto/add-message.dto.ts
-import { IsString, IsDateString, IsOptional } from 'class-validator';
+import { Type } from 'class-transformer';
+import { IsDate, IsIn, IsOptional, IsString } from 'class-validator';
 
 export class AddMessageDto {
-  @IsString()
-  sender: 'customer' | 'bot';
-
-  @IsString()
-  text: string;
-
+  @IsString() sender: 'customer' | 'bot';
+  @IsString() text: string;
   @IsOptional()
-  @IsDateString()
-  timestamp?: string; // نأخذ String ISO ثم نحوّله في الـ Service
+  @Type(() => Date)
+  @IsDate()
+  timestamp?: Date;
+  @IsOptional()
+  @IsIn(['whatsapp', 'telegram', 'mock', 'sms'])
+  channel?: 'whatsapp' | 'telegram' | 'mock' | 'sms';
 }

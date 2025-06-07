@@ -1,46 +1,68 @@
-import { Controller, Post, Body, UseGuards } from '@nestjs/common';
+import {
+  Controller,
+  Post,
+  Body,
+  UseGuards,
+  HttpCode,
+  HttpStatus,
+} from '@nestjs/common';
 import { ScraperService } from './scraper.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import {
   ApiTags,
-  ApiOperation,
-  ApiResponse,
   ApiBearerAuth,
+  ApiOperation,
+  ApiBody,
+  ApiOkResponse,
+  ApiBadRequestResponse,
+  ApiUnauthorizedResponse,
+  ApiInternalServerErrorResponse,
 } from '@nestjs/swagger';
 
 class ScrapeUrlDto {
   url: string;
 }
 
-@ApiTags('Scraper')
+@ApiTags('المُعالج')
+@ApiBearerAuth()
+@UseGuards(JwtAuthGuard)
 @Controller('scraper')
 export class ScraperController {
   constructor(private readonly scraperService: ScraperService) {}
 
-  /**
-   * @api {post} /scraper/run تنفيذ عملية Scraping لرابط منتج
-   * @apiName RunScraping
-   * @apiGroup Scraper
-   *
-   * @apiHeader {String} Authorization توكن JWT (Bearer).
-   * @apiParam {String} url رابط صفحة المنتج المراد استخلاص بياناته.
-   *
-   * @apiSuccess {String} name اسم المنتج المُستخلص.
-   * @apiSuccess {String} price سعر المنتج المُستخلص.
-   *
-   * @apiError (400) BadRequest إذا لم يُرسل رابط صحيح.
-   * @apiError (401) Unauthorized توكن JWT غير صالح.
-   * @apiError (500) InternalServerError انكشاف خطأ أثناء أداء Scraping.
-   */
-  @ApiBearerAuth()
-  @ApiOperation({ summary: 'Run scraping for a product URL (protected)' })
-  @ApiResponse({ status: 200, description: 'Product scraped successfully.' })
-  @ApiResponse({ status: 400, description: 'Bad Request.' })
-  @ApiResponse({ status: 401, description: 'Unauthorized.' })
-  @ApiResponse({ status: 500, description: 'Internal Server Error.' })
-  @UseGuards(JwtAuthGuard)
   @Post('run')
+  @ApiOperation({ summary: 'تشغيل استخراج بيانات منتج من رابط (محمي)' })
+  @ApiBody({
+    type: ScrapeUrlDto,
+    description: 'رابط صفحة المنتج المطلوب استخلاص بياناته',
+  })
+  @ApiOkResponse({
+    description: 'تم استخراج بيانات المنتج بنجاح',
+    schema: {
+      example: {
+        name: 'اسم المنتج',
+        price: 'سعر المنتج',
+      },
+    },
+  })
+  @ApiBadRequestResponse({
+    description: 'طلب غير صالح: الرابط غير صحيح أو مفقود',
+  })
+  @ApiUnauthorizedResponse({
+    description: 'غير مصرح: توكن JWT غير صالح أو مفقود',
+  })
+  @ApiInternalServerErrorResponse({
+    description: 'خطأ في الخادم أثناء عملية الاستخلاص',
+  })
+  @HttpCode(HttpStatus.OK)
   async runScraping(@Body() dto: ScrapeUrlDto) {
     return this.scraperService.scrapeProduct(dto.url);
   }
 }
+
+/**
+ * النواقص:
+ * - يمكن توثيق حالات 404 إذا كان الرابط يؤدي لصفحة غير موجودة.
+ * - إضافة مثال للخطأ في ApiInternalServerErrorResponse لعرض بنية رسالة الخطأ.
+ * - توصيف ResponseDto مفصّل إذا كان يحتوي على حقول إضافية مثل images أو description.
+ */

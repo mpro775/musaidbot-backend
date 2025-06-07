@@ -1,30 +1,33 @@
+// src/modules/conversations/schemas/conversation.schema.ts
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Types } from 'mongoose';
 
-export type ConversationDocument = Document &
-  Conversation & { _id: Types.ObjectId }; // ✅ هنا الإضافة المهمة
-
-class Message {
-  @Prop({ enum: ['customer', 'bot'], required: true })
-  sender: string;
-
-  @Prop({ required: true })
-  text: string;
-
-  @Prop({ required: true, default: () => new Date() })
-  timestamp: Date;
-}
+export type ConversationDocument = Conversation & Document;
 
 @Schema({ timestamps: true })
 export class Conversation {
-  @Prop({ type: Types.ObjectId, required: true })
+  @Prop({ type: Types.ObjectId, ref: 'Merchant', required: true })
   merchantId: Types.ObjectId;
 
-  @Prop({ required: true })
-  userId: string;
+  @Prop() userId: string;
 
-  @Prop({ type: [Message], default: [] })
-  messages: Message[];
+  @Prop({ default: 'whatsapp' })
+  channel: 'whatsapp' | 'telegram' | 'mock' | 'sms';
+
+  @Prop([
+    {
+      sender: String,
+      text: String,
+      timestamp: Date,
+      channel: { type: String, default: 'whatsapp' },
+    },
+  ])
+  messages: {
+    sender: 'customer' | 'bot';
+    text: string;
+    timestamp: Date;
+    channel: 'whatsapp' | 'telegram' | 'mock' | 'sms';
+  }[];
 }
 
 export const ConversationSchema = SchemaFactory.createForClass(Conversation);

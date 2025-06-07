@@ -1,4 +1,3 @@
-// src/modules/responses/response.controller.ts
 import {
   Controller,
   Get,
@@ -20,14 +19,17 @@ import {
   ApiTags,
   ApiBearerAuth,
   ApiOperation,
-  ApiResponse,
+  ApiParam,
+  ApiBody,
   ApiCreatedResponse,
   ApiOkResponse,
-  ApiParam,
+  ApiBadRequestResponse,
+  ApiForbiddenResponse,
+  ApiNotFoundResponse,
 } from '@nestjs/swagger';
 import { ResponseResponseDto } from './dto/response-response.dto';
 
-@ApiTags('Responses')
+@ApiTags('الردود التلقائية')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard)
 @Controller('responses')
@@ -35,19 +37,21 @@ export class ResponseController {
   constructor(private readonly responseService: ResponseService) {}
 
   @Get()
-  @ApiOperation({ summary: 'Get all auto-responses for current merchant' })
+  @ApiOperation({ summary: 'جلب جميع الردود التلقائية للتاجر الحالي' })
   @ApiOkResponse({
-    description: 'List of responses returned.',
+    description: 'تم إرجاع قائمة الردود بنجاح',
     type: ResponseResponseDto,
     isArray: true,
   })
-  @ApiResponse({ status: 400, description: 'Missing merchantId in token.' })
+  @ApiBadRequestResponse({
+    description: 'طلب غير صالح: معرف التاجر غير موجود في التوكن',
+  })
   async findAll(
     @Request() req: RequestWithUser,
   ): Promise<ResponseResponseDto[]> {
     const merchantId = req.user.merchantId;
     if (!merchantId) {
-      throw new BadRequestException('Missing merchantId in token');
+      throw new BadRequestException('معرّف التاجر مفقود في التوكن');
     }
     const items = await this.responseService.findAll(merchantId);
     return items.map((r) => ({
@@ -61,14 +65,18 @@ export class ResponseController {
   }
 
   @Post()
-  @ApiOperation({ summary: 'Create a new auto-response' })
+  @ApiOperation({ summary: 'إنشاء رد تلقائي جديد' })
+  @ApiBody({
+    type: CreateResponseDto,
+    description: 'بيانات الرد: الكلمة المفتاحية ونص الرد',
+  })
   @ApiCreatedResponse({
-    description: 'Response created successfully.',
+    description: 'تم إنشاء الرد بنجاح',
     type: ResponseResponseDto,
   })
-  @ApiResponse({
-    status: 400,
-    description: 'Invalid payload or keyword exists.',
+  @ApiBadRequestResponse({
+    description:
+      'طلب غير صالح: المدخلات خاطئة أو الكلمة المفتاحية موجودة مسبقاً',
   })
   async create(
     @Request() req: RequestWithUser,
@@ -76,7 +84,7 @@ export class ResponseController {
   ): Promise<ResponseResponseDto> {
     const merchantId = req.user.merchantId;
     if (!merchantId) {
-      throw new BadRequestException('Missing merchantId in token');
+      throw new BadRequestException('معرّف التاجر مفقود في التوكن');
     }
     const r = await this.responseService.create(merchantId, dto);
     return {
@@ -90,14 +98,15 @@ export class ResponseController {
   }
 
   @Patch(':id')
-  @ApiParam({ name: 'id', description: 'Response ID', type: String })
-  @ApiOperation({ summary: 'Update an existing auto-response (owner only)' })
+  @ApiParam({ name: 'id', type: 'string', description: 'معرّف الرد' })
+  @ApiOperation({ summary: 'تحديث رد تلقائي موجود (لصاحب الرد فقط)' })
+  @ApiBody({ type: UpdateResponseDto, description: 'الحقول المراد تعديلها' })
   @ApiOkResponse({
-    description: 'Response updated successfully.',
+    description: 'تم تحديث الرد بنجاح',
     type: ResponseResponseDto,
   })
-  @ApiResponse({ status: 403, description: 'Forbidden: Not owner.' })
-  @ApiResponse({ status: 404, description: 'Response not found.' })
+  @ApiForbiddenResponse({ description: 'ممنوع: ليس مالك الرد' })
+  @ApiNotFoundResponse({ description: 'الرد غير موجود' })
   async update(
     @Param('id') id: string,
     @Body() dto: UpdateResponseDto,
@@ -105,7 +114,7 @@ export class ResponseController {
   ): Promise<ResponseResponseDto> {
     const merchantId = req.user.merchantId;
     if (!merchantId) {
-      throw new BadRequestException('Missing merchantId in token');
+      throw new BadRequestException('معرّف التاجر مفقود في التوكن');
     }
     const r = await this.responseService.update(id, dto, merchantId);
     return {
@@ -119,19 +128,26 @@ export class ResponseController {
   }
 
   @Delete(':id')
-  @ApiParam({ name: 'id', description: 'Response ID', type: String })
-  @ApiOperation({ summary: 'Delete an auto-response (owner only)' })
-  @ApiOkResponse({ description: 'Response deleted successfully.' })
-  @ApiResponse({ status: 403, description: 'Forbidden: Not owner.' })
-  @ApiResponse({ status: 404, description: 'Response not found.' })
+  @ApiParam({ name: 'id', type: 'string', description: 'معرّف الرد' })
+  @ApiOperation({ summary: 'حذف رد تلقائي (لصاحب الرد فقط)' })
+  @ApiOkResponse({ description: 'تم حذف الرد بنجاح' })
+  @ApiForbiddenResponse({ description: 'ممنوع: ليس مالك الرد' })
+  @ApiNotFoundResponse({ description: 'الرد غير موجود' })
   async remove(
     @Param('id') id: string,
     @Request() req: RequestWithUser,
   ): Promise<{ message: string }> {
     const merchantId = req.user.merchantId;
     if (!merchantId) {
-      throw new BadRequestException('Missing merchantId in token');
+      throw new BadRequestException('معرّف التاجر مفقود في التوكن');
     }
     return this.responseService.remove(id, merchantId);
   }
 }
+
+/**
+ * النواقص:
+ * - إضافة @ApiUnauthorizedResponse لحالات التوكن غير الصالح أو المفقود.
+ * - يمكن إضافة مثال لبيانات ResponseResponseDto باستخدام schema.example.
+ * - توصيف دقيق لحقول UpdateResponseDto وCreateResponseDto (مثل طول النص وغيرها).
+ */

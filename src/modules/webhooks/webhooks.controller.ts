@@ -6,69 +6,80 @@ import {
   UseGuards,
   Request,
   BadRequestException,
+  HttpCode,
+  HttpStatus,
 } from '@nestjs/common';
 import { WebhooksService } from './webhooks.service';
 import { HandleWebhookDto } from './dto/handle-webhook.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
-import { RequestWithUser } from 'src/common/interfaces/request-with-user.interface';
+import { ApiKeyGuard } from 'src/common/guards/api-key.guard';
 import {
   ApiTags,
-  ApiOperation,
-  ApiResponse,
   ApiBearerAuth,
+  ApiOperation,
   ApiParam,
+  ApiBody,
+  ApiCreatedResponse,
+  ApiBadRequestResponse,
+  ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
-import { ApiKeyGuard } from 'src/common/guards/api-key.guard';
 
 @ApiTags('Webhooks')
 @Controller('webhook')
 export class WebhooksController {
   constructor(private readonly webhooksService: WebhooksService) {}
 
-  /**
-   * @api {post} /webhook/:eventType استقبال أحداث Webhook من n8n
-   * @apiName HandleWebhook
-   * @apiGroup Webhooks
-   *
-   * @apiHeader {String} Authorization توكن JWT (Bearer).
-   * @apiParam {String} eventType نوع الحدث (مثال: product.updated).
-   * @apiParam {Object} [payload] الحمولة (اختياري، يمكن أن تحتوي على نصائح إضافية).
-   *
-   * @apiSuccess {Object} webhook كائن الحدث المحفوظ في قاعدة البيانات.
-   *
-   * @apiError (400) BadRequest خطأ في تنسيق الحمولة.
-   * @apiError (401) Unauthorized توكن JWT غير صالح.
-   */
+  @Post(':eventType')
+  @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @ApiParam({
     name: 'eventType',
     type: 'string',
-    description: 'Event type (e.g., "product.updated")',
+    description: 'نوع الحدث (مثال: product.updated)',
   })
-  @ApiOperation({ summary: 'Handle incoming webhook event (protected)' })
-  @ApiResponse({
-    status: 201,
-    description: 'Webhook event handled and saved.',
+  @ApiBody({
+    type: HandleWebhookDto,
+    description: 'بيانات الحدث الواردة من n8n أو المصدر الخارجي',
   })
-  @ApiResponse({ status: 400, description: 'Bad Request.' })
-  @ApiResponse({ status: 401, description: 'Unauthorized.' })
-  @UseGuards(JwtAuthGuard)
-  @Post(':eventType')
+  @ApiCreatedResponse({ description: 'تم استلام الحدث وحفظه بنجاح' })
+  @ApiBadRequestResponse({
+    description: 'طلب غير صالح: تنسيق الحمولة خاطئ أو مفقود',
+  })
+  @ApiUnauthorizedResponse({
+    description: 'غير مصرح: توكن JWT غير صالح أو مفقود',
+  })
+  @HttpCode(HttpStatus.CREATED)
   async handleWebhook(
     @Param('eventType') eventType: string,
     @Body() handleDto: HandleWebhookDto,
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    @Request() req: RequestWithUser,
   ) {
-    // تحويل الحمولة إلى كائن موحّد أو التحقق من صلاحيات إضافية إذا أردت
     return this.webhooksService.handleEvent(eventType, handleDto.payload || {});
   }
-  @UseGuards(ApiKeyGuard)
+
   @Post('whatsapp_incoming')
+  @UseGuards(ApiKeyGuard)
+  @ApiOperation({
+    summary: 'استقبال رسائل الواتساب الواردة (API Key protected)',
+  })
+  @ApiBody({
+    schema: {
+      example: {
+        merchantId: '123',
+        from: '+123456789',
+        messageText: 'نص الرسالة',
+      },
+    },
+    description: 'بيانات رسالة الواتساب الواردة',
+  })
+  @ApiCreatedResponse({ description: 'تم استلام رسالة الواتساب وحفظها بنجاح' })
+  @ApiBadRequestResponse({ description: 'طلب غير صالح: الحقول مطلوبة' })
+  @HttpCode(HttpStatus.CREATED)
   async handleWhatsappWebhook(@Body() payload: any) {
     const { merchantId, from, messageText } = payload;
     if (!merchantId || !from || !messageText) {
-      throw new BadRequestException('Missing fields');
+      throw new BadRequestException(
+        'الحقول merchantId وfrom وmessageText مطلوبة',
+      );
     }
     return this.webhooksService.handleEvent('whatsapp_incoming', {
       merchantId,
@@ -77,3 +88,10 @@ export class WebhooksController {
     });
   }
 }
+
+/**
+ * النواقص:
+ * - إضافة @ApiNotFoundResponse إذا كانت النقطة تحتاج التحقق من وجود المورد.
+ * - توثيق مفصل لهيكل HandleWebhookDto وحقول payload.
+ * - يمكن إضافة أمثلة JSON أكثر في ApiCreatedResponse باستخدام schema.example.
+ */

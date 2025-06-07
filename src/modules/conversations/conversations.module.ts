@@ -1,5 +1,7 @@
+// src/modules/conversations/conversations.module.ts
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
+import { HttpModule } from '@nestjs/axios';
 import {
   Conversation,
   ConversationSchema,
@@ -12,6 +14,7 @@ import { ConversationsController } from './conversations.controller';
     MongooseModule.forFeature([
       { name: Conversation.name, schema: ConversationSchema },
     ]),
+    HttpModule, // لاستدعاء n8n
   ],
   providers: [ConversationsService],
   controllers: [ConversationsController],

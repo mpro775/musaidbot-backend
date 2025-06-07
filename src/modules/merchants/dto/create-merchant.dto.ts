@@ -4,7 +4,10 @@ import {
   IsOptional,
   IsUrl,
   IsEmail,
+  ValidateNested,
 } from 'class-validator';
+import { Type } from 'class-transformer';
+import { PromptConfigDto } from './prompt-config.dto';
 
 export class CreateMerchantDto {
   @IsString()
@@ -19,16 +22,25 @@ export class CreateMerchantDto {
   @IsNotEmpty()
   phone: string;
 
+  @IsString()
+  @IsNotEmpty()
+  whatsappNumber: string;
+
   @IsUrl()
   @IsOptional()
   logoUrl?: string;
 
   @IsString()
-  userId: string; // إذا كنت ستربطه بمستخدم
-
-  @IsString()
-  whatsappNumber: string;
-  @IsString()
   @IsOptional()
   address?: string;
+
+  @IsString()
+  @IsNotEmpty()
+  userId: string;
+
+  // هنا نستخدم ValidateNested + Type لتحويل الجسم إلى PromptConfigDto
+  @ValidateNested()
+  @Type(() => PromptConfigDto)
+  @IsOptional()
+  promptConfig?: PromptConfigDto;
 }

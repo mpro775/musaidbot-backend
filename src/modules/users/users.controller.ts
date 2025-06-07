@@ -9,153 +9,121 @@ import {
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
+import { CacheInterceptor } from '@nestjs/cache-manager';
 import { UsersService } from './users.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import {
   ApiTags,
-  ApiOperation,
-  ApiResponse,
   ApiBearerAuth,
+  ApiOperation,
   ApiParam,
+  ApiBody,
+  ApiOkResponse,
+  ApiCreatedResponse,
+  ApiBadRequestResponse,
+  ApiUnauthorizedResponse,
+  ApiNotFoundResponse,
 } from '@nestjs/swagger';
-import { CacheInterceptor } from '@nestjs/cache-manager';
 
-@ApiTags('Users')
+@ApiTags('المستخدمون')
+@ApiBearerAuth()
+@UseGuards(JwtAuthGuard)
 @Controller('users')
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
-  /**
-   * @api {get} /users جلب جميع المستخدمين
-   * @apiName GetAllUsers
-   * @apiGroup Users
-   *
-   * @apiHeader {String} Authorization توكن JWT (Bearer).
-   *
-   * @apiSuccess {Object[]} users قائمة المستخدمين.
-   *
-   * @apiError (401) Unauthorized توكن JWT غير صالح.
-   */
-  @ApiBearerAuth()
-  @ApiOperation({ summary: 'Get all users' })
-  @ApiResponse({ status: 200, description: 'List of users returned.' })
-  @UseGuards(JwtAuthGuard)
-  @UseInterceptors(CacheInterceptor)
   @Get()
+  @ApiOperation({ summary: 'جلب جميع المستخدمين' })
+  @ApiOkResponse({
+    description: 'تم إرجاع قائمة المستخدمين بنجاح',
+    type: CreateUserDto,
+    isArray: true,
+  })
+  @ApiUnauthorizedResponse({
+    description: 'غير مصرح: توكن JWT غير صالح أو مفقود',
+  })
+  @UseInterceptors(CacheInterceptor)
+  @UseGuards(JwtAuthGuard)
   findAll() {
     return this.usersService.findAll();
   }
 
-  /**
-   * @api {get} /users/:id جلب مستخدم واحد حسب معرّف
-   * @apiName GetUserById
-   * @apiGroup Users
-   *
-   * @apiHeader {String} Authorization توكن JWT (Bearer).
-   * @apiParam {String} id معرّف المستخدم.
-   *
-   * @apiSuccess {Object} user كائن المستخدم.
-   *
-   * @apiError (404) NotFound المستخدم غير موجود.
-   * @apiError (401) Unauthorized توكن JWT غير صالح.
-   */
-  @ApiBearerAuth()
-  @ApiParam({
-    name: 'id',
-    type: 'string',
-    description: 'User ID',
-  })
-  @ApiOperation({ summary: 'Get a single user by ID' })
-  @ApiResponse({ status: 200, description: 'User returned.' })
-  @ApiResponse({ status: 404, description: 'User not found.' })
-  @UseGuards(JwtAuthGuard)
   @Get(':id')
+  @ApiParam({ name: 'id', type: 'string', description: 'معرّف المستخدم' })
+  @ApiOperation({ summary: 'جلب مستخدم واحد حسب المعرّف' })
+  @ApiOkResponse({
+    description: 'تم إرجاع بيانات المستخدم بنجاح',
+    type: CreateUserDto,
+  })
+  @ApiNotFoundResponse({ description: 'المستخدم غير موجود' })
+  @ApiUnauthorizedResponse({
+    description: 'غير مصرح: توكن JWT غير صالح أو مفقود',
+  })
+  @UseGuards(JwtAuthGuard)
   findOne(@Param('id') id: string) {
     return this.usersService.findOne(id);
   }
 
-  /**
-   * @api {post} /users إنشاء مستخدم جديد
-   * @apiName CreateUser
-   * @apiGroup Users
-   *
-   * @apiHeader {String} Authorization توكن JWT (Bearer).
-   * @apiParam {String} email ايميل المستخدم.
-   * @apiParam {String} name اسم المستخدم.
-   * @apiParam {String} [role] دور المستخدم (اختياري).
-   *
-   * @apiSuccess {Object} user كائن المستخدم المنشأ.
-   *
-   * @apiError (400) BadRequest خطأ في حقول الإدخال.
-   * @apiError (401) Unauthorized توكن JWT غير صالح.
-   */
-  @ApiBearerAuth()
-  @ApiOperation({ summary: 'Create a new user' })
-  @ApiResponse({ status: 201, description: 'User created successfully.' })
-  @UseGuards(JwtAuthGuard)
   @Post()
+  @ApiBody({
+    type: CreateUserDto,
+    description:
+      'بيانات إنشاء المستخدم: البريد الإلكتروني، الاسم، الدور (اختياري)',
+  })
+  @ApiCreatedResponse({
+    description: 'تم إنشاء المستخدم بنجاح',
+    type: CreateUserDto,
+  })
+  @ApiBadRequestResponse({
+    description: 'طلب غير صالح: بيانات مفقودة أو تنسيق خاطئ',
+  })
+  @ApiUnauthorizedResponse({
+    description: 'غير مصرح: توكن JWT غير صالح أو مفقود',
+  })
+  @UseGuards(JwtAuthGuard)
   create(@Body() createDto: CreateUserDto) {
     return this.usersService.create(createDto);
   }
 
-  /**
-   * @api {put} /users/:id تحديث بيانات مستخدم
-   * @apiName UpdateUser
-   * @apiGroup Users
-   *
-   * @apiHeader {String} Authorization توكن JWT (Bearer).
-   * @apiParam {String} id معرّف المستخدم.
-   * @apiParam {String} [email] الايميل الجديد (اختياري).
-   * @apiParam {String} [name] الاسم الجديد (اختياري).
-   * @apiParam {String} [role] الدور الجديد (اختياري).
-   *
-   * @apiSuccess {Object} user كائن المستخدم المحدث.
-   *
-   * @apiError (404) NotFound المستخدم غير موجود.
-   * @apiError (401) Unauthorized توكن JWT غير صالح.
-   */
-  @ApiBearerAuth()
-  @ApiParam({
-    name: 'id',
-    type: 'string',
-    description: 'User ID',
-  })
-  @ApiOperation({ summary: 'Update a user' })
-  @ApiResponse({ status: 200, description: 'User updated successfully.' })
-  @ApiResponse({ status: 404, description: 'User not found.' })
-  @UseGuards(JwtAuthGuard)
   @Put(':id')
+  @ApiParam({ name: 'id', type: 'string', description: 'معرّف المستخدم' })
+  @ApiBody({
+    type: UpdateUserDto,
+    description: 'الحقول المراد تحديثها: البريد الإلكتروني، الاسم، الدور',
+  })
+  @ApiOperation({ summary: 'تحديث بيانات مستخدم' })
+  @ApiOkResponse({
+    description: 'تم تحديث بيانات المستخدم بنجاح',
+    type: CreateUserDto,
+  })
+  @ApiNotFoundResponse({ description: 'المستخدم غير موجود' })
+  @ApiUnauthorizedResponse({
+    description: 'غير مصرح: توكن JWT غير صالح أو مفقود',
+  })
+  @UseGuards(JwtAuthGuard)
   update(@Param('id') id: string, @Body() updateDto: UpdateUserDto) {
     return this.usersService.update(id, updateDto);
   }
 
-  /**
-   * @api {delete} /users/:id حذف مستخدم
-   * @apiName DeleteUser
-   * @apiGroup Users
-   *
-   * @apiHeader {String} Authorization توكن JWT (Bearer).
-   * @apiParam {String} id معرّف المستخدم.
-   *
-   * @apiSuccess {String} message رسالة حذف ناجح.
-   *
-   * @apiError (404) NotFound المستخدم غير موجود.
-   * @apiError (401) Unauthorized توكن JWT غير صالح.
-   */
-  @ApiBearerAuth()
-  @ApiParam({
-    name: 'id',
-    type: 'string',
-    description: 'User ID',
-  })
-  @ApiOperation({ summary: 'Delete a user' })
-  @ApiResponse({ status: 200, description: 'User deleted successfully.' })
-  @ApiResponse({ status: 404, description: 'User not found.' })
-  @UseGuards(JwtAuthGuard)
   @Delete(':id')
+  @ApiParam({ name: 'id', type: 'string', description: 'معرّف المستخدم' })
+  @ApiOperation({ summary: 'حذف مستخدم' })
+  @ApiOkResponse({ description: 'تم حذف المستخدم بنجاح' })
+  @ApiNotFoundResponse({ description: 'المستخدم غير موجود' })
+  @ApiUnauthorizedResponse({
+    description: 'غير مصرح: توكن JWT غير صالح أو مفقود',
+  })
+  @UseGuards(JwtAuthGuard)
   remove(@Param('id') id: string) {
     return this.usersService.remove(id);
   }
 }
+
+/**
+ * النواقص:
+ * - إضافة أمثلة JSON في ApiOkResponse وApiCreatedResponse باستخدام schema.example.
+ * - يمكن إضافة ApiForbiddenResponse لحالات صلاحيات خاصة.
+ * - توصيف دقيق لحقول DTOs (مثل طول النص وتنسيق البريد الإلكتروني).
+ */

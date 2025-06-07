@@ -4,6 +4,7 @@ import {
   ArrayNotEmpty,
   ValidateNested,
   IsOptional,
+  IsIn,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
@@ -28,4 +29,8 @@ export class CreateConversationDto {
   @ValidateNested({ each: true })
   @Type(() => MessageDto)
   messages: MessageDto[];
+
+  @IsOptional()
+  @IsIn(['whatsapp', 'telegram', 'mock', 'sms'])
+  channel?: string = 'whatsapp';
 }
