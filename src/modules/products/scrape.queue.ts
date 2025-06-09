@@ -1,60 +1,99 @@
 // src/modules/products/scrape.queue.ts
-import { Injectable, OnModuleInit, Logger } from '@nestjs/common';
+import {
+  Injectable,
+  OnModuleInit,
+  Logger,
+  forwardRef,
+  Inject,
+} from '@nestjs/common';
 import { Queue, Worker, Job } from 'bullmq';
 import { RedisConfig } from '../../config/redis.config';
 import { ScraperService } from '../scraper/scraper.service';
 import { ProductsService } from './products.service';
+import { InjectQueue } from '@nestjs/bull';
+
+type ScrapeJobData = {
+  productId: string;
+  url: string;
+  mode: 'full' | 'minimal';
+};
 
 @Injectable()
 export class ScrapeQueue implements OnModuleInit {
   private readonly logger = new Logger(ScrapeQueue.name);
-  private queue: Queue;
+  @InjectQueue('scrape')
+  private queue: Queue<ScrapeJobData>;
 
   constructor(
     private readonly redisConfig: RedisConfig,
     private readonly scraperService: ScraperService,
+    @Inject(forwardRef(() => ProductsService))
     private readonly productsService: ProductsService,
   ) {}
 
   onModuleInit() {
-    this.queue = new Queue('product-scrape-queue', {
+    // تأكد أن اسم القوّة موحد مع InjectQueue
+    this.queue = new Queue<ScrapeJobData>('scrape', {
       connection: this.redisConfig.connection,
     });
 
-    // إنشاء Worker لمعالجة مهام الـ Scraping
-    new Worker(
-      'product-scrape-queue',
-      async (job: Job) => {
-        const { productId, url } = job.data as {
-          productId: string;
-          url: string;
-        };
+    new Worker<ScrapeJobData>(
+      'scrape',
+      async (job: Job<ScrapeJobData>) => {
+        const { productId, url, mode } = job.data;
 
         try {
-          // استدعاء دالة ScraperService لجلب الحقول الجديدة
-          const { name, price, inStock, images, description } =
-            await this.scraperService.scrapeProduct(url);
+          // تمرير الخيار mode إلى service
+          const result = await this.scraperService.scrapeProduct(url, { mode });
 
-          // تحديث سجل المنتج في قاعدة البيانات بعد جلب البيانات
-          await this.productsService.updateAfterScrape(productId, {
-            name,
-            price,
-            isAvailable: inStock,
-            images,
-            description,
-            lastScrapedAt: new Date(),
-            errorState: '',
-          });
+          const now = new Date();
+          if (mode === 'minimal') {
+            // فقط تحديث السعر والتوفر + lastFetchedAt
+            await this.productsService.updateAfterScrape(productId, {
+              price: (result as any).price,
+              isAvailable: (result as any).inStock,
+              lastFetchedAt: now,
+              errorState: '',
+            });
+          } else {
+            // full → نحدّث كل الحقول + lastFetchedAt + lastFullScrapedAt
+            const {
+              name,
+              price,
+              inStock,
+              images,
+              description,
+              category,
+              lowQuantity,
+              specsBlock,
+              platform,
+            } = result as any;
 
-          this.logger.log(`Scraped and updated product ${productId}`);
+            await this.productsService.updateAfterScrape(productId, {
+              name,
+              price,
+              isAvailable: inStock,
+              images,
+              description,
+              category,
+              lowQuantity,
+              specsBlock,
+              platform,
+              lastFetchedAt: now,
+              lastFullScrapedAt: now,
+              errorState: '',
+            });
+          }
+
+          this.logger.log(`Scraped [${mode}] and updated product ${productId}`);
         } catch (err) {
-          // في حال وقوع خطأ
+          // عند الخطأ نُسجّل الرسالة ونحدّث lastFetchedAt
           await this.productsService.updateAfterScrape(productId, {
             errorState: (err as Error).message,
-            lastScrapedAt: new Date(),
+            lastFetchedAt: new Date(),
           });
           this.logger.error(
-            `Failed to scrape product ${productId}: ${(err as Error).message}`,
+            `Failed to scrape (${mode}) product ${productId}: ${(err as Error).message}`,
           );
         }
       },
@@ -65,7 +104,15 @@ export class ScrapeQueue implements OnModuleInit {
     );
   }
 
-  async addJob(data: { productId: string; url: string; merchantId: string }) {
-    await this.queue.add('scrape', data);
+  /**
+   * لإضافة مهمة إلى الطابور:
+   * mode: 'full' عند الإضافة الأولى أو طلب صريح
+   * mode: 'minimal' للتحديث الدوري
+   */
+  async addJob(data: ScrapeJobData) {
+    await this.queue.add('scrape', data, {
+      removeOnComplete: true,
+      removeOnFail: false,
+    });
   }
 }

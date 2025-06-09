@@ -6,8 +6,9 @@ import {
   IsArray,
   IsNumber,
   IsBoolean,
-  IsString as _IsString,
+  IsDate,
 } from 'class-validator';
+import { Type } from 'class-transformer';
 
 export class CreateProductDto {
   @IsString()
@@ -28,6 +29,43 @@ export class CreateProductDto {
 
   @IsOptional()
   @IsArray()
-  @_IsString({ each: true })
+  @IsString({ each: true })
   keywords?: string[];
+
+  // الحقول الجديدة
+  @IsOptional()
+  @IsString()
+  platform?: string;
+
+  @IsOptional()
+  @IsString()
+  description?: string;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  images?: string[];
+
+  @IsOptional()
+  @IsString()
+  category?: string;
+
+  @IsOptional()
+  @IsString()
+  lowQuantity?: string;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  specsBlock?: string[];
+
+  @IsOptional()
+  @Type(() => Date)
+  @IsDate()
+  lastFetchedAt?: Date;
+
+  @IsOptional()
+  @Type(() => Date)
+  @IsDate()
+  lastFullScrapedAt?: Date;
 }

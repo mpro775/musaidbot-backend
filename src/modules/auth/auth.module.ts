@@ -8,6 +8,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
 import { User, UserSchema } from '../users/schemas/user.schema';
+import { Merchant, MerchantSchema } from '../merchants/schemas/merchant.schema'; // ← استورد تعريف التاجر
 import { JwtStrategy } from './strategies/jwt.strategy';
 
 @Module({
@@ -23,7 +24,10 @@ import { JwtStrategy } from './strategies/jwt.strategy';
       inject: [ConfigService],
     }),
 
-    MongooseModule.forFeature([{ name: User.name, schema: UserSchema }]),
+    MongooseModule.forFeature([
+      { name: User.name, schema: UserSchema },
+      { name: Merchant.name, schema: MerchantSchema }, // ← أضف هذا السطر
+    ]),
   ],
   providers: [AuthService, JwtStrategy],
   controllers: [AuthController],

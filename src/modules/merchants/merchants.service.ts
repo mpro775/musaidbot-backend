@@ -13,7 +13,10 @@ import { CreateTemplateDto } from './dto/create-template.dto';
 import { TemplatesService } from '../templates/templates.service';
 import { WhatsappService } from '../whatsapp/whatsapp.service';
 import { UpdateChannelDto } from './dto/update-channel.dto';
-import { TemplateDocument } from '../templates/schemas/template.schema';
+import {
+  Template,
+  TemplateDocument,
+} from '../templates/schemas/template.schema';
 
 @Injectable()
 export class MerchantsService {
@@ -21,7 +24,7 @@ export class MerchantsService {
     @InjectModel(Merchant.name) private merchantModel: Model<MerchantDocument>,
     private readonly templateService: TemplatesService,
     private readonly whatsappService: WhatsappService,
-
+    @InjectModel(Template.name)
     private readonly templateModel: Model<TemplateDocument>, // ← هنا
   ) {}
 

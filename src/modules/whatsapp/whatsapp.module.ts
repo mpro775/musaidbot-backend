@@ -12,17 +12,23 @@ import { Merchant, MerchantSchema } from '../merchants/schemas/merchant.schema';
 import { JwtModule } from '@nestjs/jwt';
 import { ConfigModule } from '@nestjs/config';
 
+// استيراد ConversationsModule
+import { ConversationsModule } from '../conversations/conversations.module';
+
+// src/modules/whatsapp/whatsapp.module.ts
 @Module({
   imports: [
     ConfigModule,
-    JwtModule.register({ secret: process.env.JWT_SECRET }), // لاستخدام JWT عند إرسال المحادثات
+    JwtModule.register({ secret: process.env.JWT_SECRET }),
     MongooseModule.forFeature([
       { name: Response.name, schema: ResponseSchema },
       { name: Conversation.name, schema: ConversationSchema },
       { name: Merchant.name, schema: MerchantSchema },
     ]),
+    ConversationsModule,
   ],
   controllers: [WhatsappController],
   providers: [WhatsappService],
+  exports: [WhatsappService], // ← هذا السطر أضفته
 })
 export class WhatsappModule {}

@@ -1,6 +1,6 @@
 // src/modules/products/schemas/product.schema.ts
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { Document, HydratedDocument, Types } from 'mongoose';
+import { HydratedDocument, Types } from 'mongoose';
 
 export type ProductDocument = HydratedDocument<Product>;
 
@@ -11,6 +11,9 @@ export class Product {
 
   @Prop({ required: true })
   originalUrl: string;
+
+  @Prop({ default: '' })
+  platform: string;
 
   @Prop({ default: '' })
   name: string;
@@ -27,8 +30,20 @@ export class Product {
   @Prop({ default: [] })
   images: string[];
 
+  @Prop({ default: '' })
+  category: string;
+
+  @Prop({ default: '' })
+  lowQuantity: string;
+
+  @Prop({ default: [] })
+  specsBlock: string[];
+
   @Prop({ default: null })
-  lastScrapedAt: Date;
+  lastFetchedAt: Date;
+
+  @Prop({ default: null })
+  lastFullScrapedAt: Date;
 
   @Prop({ default: null })
   errorState: string;

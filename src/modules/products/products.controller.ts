@@ -11,7 +11,11 @@ import {
   ForbiddenException,
   HttpStatus,
   HttpCode,
+  UseInterceptors,
+  ClassSerializerInterceptor,
 } from '@nestjs/common';
+import { plainToInstance } from 'class-transformer';
+import { Types } from 'mongoose';
 import { ProductsService } from './products.service';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
@@ -30,11 +34,11 @@ import {
   ApiForbiddenResponse,
   ApiNotFoundResponse,
 } from '@nestjs/swagger';
-import { Types } from 'mongoose';
 
 @ApiTags('المنتجات')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard)
+@UseInterceptors(ClassSerializerInterceptor)
 @Controller('products')
 export class ProductsController {
   constructor(private readonly productsService: ProductsService) {}
@@ -45,11 +49,29 @@ export class ProductsController {
   @ApiCreatedResponse({
     description: 'تم إنشاء المنتج ووضعه في قائمة الانتظار للمعالجة',
     type: ProductResponseDto,
+    schema: {
+      example: {
+        _id: '60f8f0e5e1d3c42f88a7b9a1',
+        merchantId: '5f7e1a3b4c9d0e2f1a2b3c4d',
+        originalUrl: 'https://example.com/product/123',
+        name: 'منتج تجريبي',
+        price: 99.99,
+        isAvailable: true,
+        keywords: ['test', 'demo'],
+        platform: 'ExampleShop',
+        description: 'هذا وصف تفصيلي للمنتج.',
+        images: ['https://.../img1.jpg', 'https://.../img2.jpg'],
+        category: 'إلكترونيات',
+        errorState: 'queued',
+        createdAt: '2025-06-09T13:45:00.000Z',
+        updatedAt: '2025-06-09T13:45:00.000Z',
+      },
+    },
   })
-  @ApiForbiddenResponse({ description: 'ممنوع: دور المستخدم غير كافٍ' })
   @ApiUnauthorizedResponse({
     description: 'غير مصرح: توكن JWT غير صالح أو مفقود',
   })
+  @ApiForbiddenResponse({ description: 'ممنوع: دور المستخدم غير كافٍ' })
   @HttpCode(HttpStatus.CREATED)
   async create(
     @Request() req: RequestWithUser,
@@ -58,9 +80,11 @@ export class ProductsController {
     if (req.user.role !== 'MERCHANT' && req.user.role !== 'ADMIN') {
       throw new ForbiddenException('Insufficient role');
     }
+
     const merchantId = req.user.merchantId!;
     const merchantObjectId = new Types.ObjectId(merchantId);
 
+    // 1) إنشاء الوثيقة في الـ DB
     const productDoc = await this.productsService.create({
       merchantId: merchantObjectId,
       originalUrl: dto.originalUrl,
@@ -70,20 +94,19 @@ export class ProductsController {
       keywords: dto.keywords ?? [],
       errorState: 'queued',
     });
+
+    // 2) إرسال مهمة السكريبنغ مع تحديد الـ mode
     await this.productsService.enqueueScrapeJob({
       productId: productDoc._id.toString(),
       url: dto.originalUrl,
       merchantId,
+      mode: 'full', // أو 'minimal' حسب حاجتك
     });
-    return {
-      _id: productDoc._id.toString(),
-      merchantId: productDoc.merchantId.toString(),
-      originalUrl: productDoc.originalUrl,
-      name: productDoc.name,
-      price: productDoc.price,
-      isAvailable: productDoc.isAvailable,
-      keywords: productDoc.keywords,
-    };
+
+    // 3) ترحيل الـ Document إلى DTO
+    return plainToInstance(ProductResponseDto, productDoc, {
+      excludeExtraneousValues: true,
+    });
   }
 
   @Get()
@@ -92,29 +115,43 @@ export class ProductsController {
     description: 'تم إرجاع قائمة المنتجات بنجاح',
     type: ProductResponseDto,
     isArray: true,
+    schema: {
+      example: [
+        {
+          _id: '60f8f0e5e1d3c42f88a7b9a1',
+          merchantId: '5f7e1a3b4c9d0e2f1a2b3c4d',
+          originalUrl: 'https://example.com/product/123',
+          name: 'منتج تجريبي',
+          price: 99.99,
+          isAvailable: true,
+          keywords: ['test', 'demo'],
+          platform: 'ExampleShop',
+          description: 'هذا وصف تفصيلي للمنتج.',
+          images: ['https://.../img1.jpg', 'https://.../img2.jpg'],
+          category: 'إلكترونيات',
+          errorState: 'ready',
+          createdAt: '2025-06-09T13:45:00.000Z',
+          updatedAt: '2025-06-09T14:00:00.000Z',
+        },
+      ],
+    },
   })
-  @ApiForbiddenResponse({ description: 'ممنوع: دور المستخدم غير كافٍ' })
   @ApiUnauthorizedResponse({
     description: 'غير مصرح: توكن JWT غير صالح أو مفقود',
   })
+  @ApiForbiddenResponse({ description: 'ممنوع: دور المستخدم غير كافٍ' })
   async findAll(
     @Request() req: RequestWithUser,
   ): Promise<ProductResponseDto[]> {
     if (req.user.role !== 'MERCHANT' && req.user.role !== 'ADMIN') {
       throw new ForbiddenException('Insufficient role');
     }
-    const products = await this.productsService.findAllByMerchant(
+    const docs = await this.productsService.findAllByMerchant(
       req.user.merchantId!,
     );
-    return products.map((p) => ({
-      _id: p._id.toString(),
-      merchantId: p.merchantId.toString(),
-      originalUrl: p.originalUrl,
-      name: p.name,
-      price: p.price,
-      isAvailable: p.isAvailable,
-      keywords: p.keywords,
-    }));
+    return plainToInstance(ProductResponseDto, docs, {
+      excludeExtraneousValues: true,
+    });
   }
 
   @Get(':id')
@@ -123,12 +160,30 @@ export class ProductsController {
   @ApiOkResponse({
     description: 'تم إرجاع بيانات المنتج بنجاح',
     type: ProductResponseDto,
+    schema: {
+      example: {
+        _id: '60f8f0e5e1d3c42f88a7b9a1',
+        merchantId: '5f7e1a3b4c9d0e2f1a2b3c4d',
+        originalUrl: 'https://example.com/product/123',
+        name: 'منتج تجريبي',
+        price: 99.99,
+        isAvailable: true,
+        keywords: ['test', 'demo'],
+        platform: 'ExampleShop',
+        description: 'هذا وصف تفصيلي للمنتج.',
+        images: ['https://.../img1.jpg', 'https://.../img2.jpg'],
+        category: 'إلكترونيات',
+        errorState: 'ready',
+        createdAt: '2025-06-09T13:45:00.000Z',
+        updatedAt: '2025-06-09T14:00:00.000Z',
+      },
+    },
   })
   @ApiNotFoundResponse({ description: 'المنتج غير موجود' })
-  @ApiForbiddenResponse({ description: 'ممنوع: ليس مالك المنتج' })
   @ApiUnauthorizedResponse({
     description: 'غير مصرح: توكن JWT غير صالح أو مفقود',
   })
+  @ApiForbiddenResponse({ description: 'ممنوع: ليس مالك المنتج' })
   async findOne(
     @Param('id') id: string,
     @Request() req: RequestWithUser,
@@ -140,15 +195,9 @@ export class ProductsController {
     ) {
       throw new ForbiddenException('Not allowed');
     }
-    return {
-      _id: product._id.toString(),
-      merchantId: product.merchantId.toString(),
-      originalUrl: product.originalUrl,
-      name: product.name,
-      price: product.price,
-      isAvailable: product.isAvailable,
-      keywords: product.keywords,
-    };
+    return plainToInstance(ProductResponseDto, product, {
+      excludeExtraneousValues: true,
+    });
   }
 
   @Put(':id')
@@ -158,8 +207,17 @@ export class ProductsController {
   @ApiOkResponse({
     description: 'تم تحديث المنتج بنجاح',
     type: ProductResponseDto,
+    schema: {
+      example: {
+        _id: '60f8f0e5e1d3c42f88a7b9a1',
+        /* باقي الحقول كما في الأمثلة السابقة */
+      },
+    },
   })
   @ApiNotFoundResponse({ description: 'المنتج غير موجود' })
+  @ApiUnauthorizedResponse({
+    description: 'غير مصرح: توكن JWT غير صالح أو مفقود',
+  })
   @ApiForbiddenResponse({ description: 'ممنوع: ليس مالك المنتج' })
   async update(
     @Param('id') id: string,
@@ -174,22 +232,22 @@ export class ProductsController {
       throw new ForbiddenException('Not allowed');
     }
     const updated = await this.productsService.update(id, dto);
-    return {
-      _id: updated._id.toString(),
-      merchantId: updated.merchantId.toString(),
-      originalUrl: updated.originalUrl,
-      name: updated.name,
-      price: updated.price,
-      isAvailable: updated.isAvailable,
-      keywords: updated.keywords,
-    };
+    return plainToInstance(ProductResponseDto, updated, {
+      excludeExtraneousValues: true,
+    });
   }
 
   @Delete(':id')
   @ApiParam({ name: 'id', type: 'string', description: 'معرّف المنتج' })
   @ApiOperation({ summary: 'حذف منتج' })
-  @ApiOkResponse({ description: 'تم حذف المنتج بنجاح' })
+  @ApiOkResponse({
+    description: 'تم حذف المنتج بنجاح',
+    schema: { example: { message: 'Product removed successfully' } },
+  })
   @ApiNotFoundResponse({ description: 'المنتج غير موجود' })
+  @ApiUnauthorizedResponse({
+    description: 'غير مصرح: توكن JWT غير صالح أو مفقود',
+  })
   @ApiForbiddenResponse({ description: 'ممنوع: ليس مالك المنتج' })
   async remove(
     @Param('id') id: string,
@@ -205,10 +263,3 @@ export class ProductsController {
     return this.productsService.remove(id);
   }
 }
-
-/**
- * النواقص:
- * - إضافة @ApiUnauthorizedResponse على جميع النقاط التي تتطلب التوكن.
- * - يمكن إضافة أمثلة JSON في ApiCreatedResponse وApiOkResponse باستخدام schema.example.
- * - توصيف Response DTO (ProductResponseDto) بشكل منفصل لعرض الحقول والتنسيق.
- */

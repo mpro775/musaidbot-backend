@@ -5,6 +5,7 @@ import { Model, Types } from 'mongoose';
 import { Product, ProductDocument } from './schemas/product.schema';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { ScrapeQueue } from './scrape.queue';
+import { Cron, CronExpression } from '@nestjs/schedule';
 
 @Injectable()
 export class ProductsService {
@@ -24,13 +25,24 @@ export class ProductsService {
           ? new Types.ObjectId(data.merchantId)
           : data.merchantId,
     };
-    return this.productModel.create(dto);
+    const product = await this.productModel.create(dto);
+
+    // → اضف هذه السطور فور الإنشاء
+    await this.enqueueScrapeJob({
+      productId: product._id.toString(),
+      url: product.originalUrl,
+      merchantId: product.merchantId.toString(),
+      mode: 'full',
+    });
+
+    return product;
   }
 
   async enqueueScrapeJob(jobData: {
     productId: string;
     url: string;
     merchantId: string;
+    mode: 'full' | 'minimal';
   }) {
     return this.scrapeQueue.addJob(jobData);
   }
@@ -72,5 +84,31 @@ export class ProductsService {
     if (!updated) throw new NotFoundException('Product not found');
 
     return updated;
+  }
+  /**
+   * يمر كل 10 دقائق على جميع المنتجات ويجدّد السعر والتوفّر فقط
+   */
+  @Cron(CronExpression.EVERY_10_MINUTES)
+  async scheduleMinimalScrape() {
+    const products = await this.productModel
+      .find()
+      .select('_id originalUrl merchantId lastFetchedAt')
+      .exec();
+    const now = Date.now();
+
+    for (const p of products) {
+      // إذا مضى أكثر من 10 دقائق عن آخر فحص
+      if (
+        !p.lastFetchedAt ||
+        now - p.lastFetchedAt.getTime() > 10 * 60 * 1000
+      ) {
+        await this.enqueueScrapeJob({
+          productId: p._id.toString(),
+          url: p.originalUrl,
+          merchantId: p.merchantId.toString(),
+          mode: 'minimal',
+        });
+      }
+    }
   }
 }

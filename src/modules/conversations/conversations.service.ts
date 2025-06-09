@@ -28,11 +28,18 @@ export class ConversationsService {
     private readonly http: HttpService,
     private readonly config: ConfigService,
   ) {
-    const url = this.config.get<string>('n8n.openaiWebhookUrl');
-    if (!url) {
-      throw new Error('N8N_OPENAI_WEBHOOK_URL is not defined in .env');
-    }
-    this.openaiWebhookUrl = url;
+    // بدل قراءة المتغيّر والتأكيد عليه برمي خطأ:
+    // const url = this.config.get<string>('n8n.openaiWebhookUrl');
+    // if (!url) {
+    //   throw new Error('N8N_OPENAI_WEBHOOK_URL is not defined in .env');
+    // }
+    // this.openaiWebhookUrl = url;
+
+    // عوضًا عن ذلك:
+    this.openaiWebhookUrl =
+      this.config.get<string>('n8n.openaiWebhookUrl') || '';
+    // أو يمكنك تعيين ثابت مؤقت:
+    // this.openaiWebhookUrl = 'http://localhost:5678/webhook/openai';
   }
 
   async create(dto: CreateConversationDto): Promise<ConversationDocument> {

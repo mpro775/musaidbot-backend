@@ -1,40 +1,40 @@
-# Dockerfile
+# Use Node.js 18 on Alpine
 FROM node:18-alpine
 
-# تثبيت المكتبات اللازمة لـ Playwright (Chromium)
+# تثبيت تبعيات Playwright و Chromium
 RUN apk add --no-cache \
-  chromium \
-  nss \
-  freetype \
-  harfbuzz \
-  ca-certificates \
-  ttf-freefont \
-  nodejs \
-  yarn
+    chromium \
+    nss \
+    freetype \
+    harfbuzz \
+    ca-certificates \
+    ttf-freefont \
+    libgcc \
+    libstdc++ \
+    dumb-init
 
-# تعيين متغيّرات بيئة لـ Playwright
-ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD true
+# تعطيل تنزيل Chromium المدمج في Puppeteer/Playwright
+ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
+# حيث يثبت Playwright المتصفحات
 ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
 
 WORKDIR /usr/src/app
 
-# نسخ package.json و package-lock.json أو yarn.lock
+# نسخ الحزم ثم تثبيتها
 COPY package*.json ./
-
-# تثبيت الاعتمادات
 RUN npm ci
 
-# نسخ بقية ملفات المشروع
-COPY . .
+# تثبيت متصفحات Playwright مع تبعياتها
+RUN npx playwright install
 
-# بناء المشروع (Nest)
+# نسخ باقي ملفات المشروع وبناءه
+COPY . .
 RUN npm run build
 
-# تعيين NODE_ENV لإنتاجيّة
+# إعداد بيئة الإنتاج ومسار Chromium
 ENV NODE_ENV=production
-
-# تعيين المسار للكروم
 ENV CHROMIUM_PATH=/usr/bin/chromium-browser
 
-# تشغيل التطبيق
+# نقطة دخول الحاوية
+ENTRYPOINT ["dumb-init", "--"]
 CMD ["node", "dist/main.js"]
