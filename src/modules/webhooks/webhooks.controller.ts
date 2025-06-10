@@ -3,14 +3,12 @@ import {
   Post,
   Body,
   Param,
-  UseGuards,
   HttpCode,
   HttpStatus,
   BadRequestException,
 } from '@nestjs/common';
 import { WebhooksService } from './webhooks.service';
 import { HandleWebhookDto } from './dto/handle-webhook.dto';
-import { ApiKeyGuard } from 'src/common/guards/api-key.guard';
 import {
   ApiTags,
   ApiOperation,
@@ -18,7 +16,6 @@ import {
   ApiBody,
   ApiCreatedResponse,
   ApiBadRequestResponse,
-  ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
 
 @ApiTags('Webhooks')
@@ -27,7 +24,6 @@ export class WebhooksController {
   constructor(private readonly webhooksService: WebhooksService) {}
 
   @Post(':eventType')
-  @UseGuards(ApiKeyGuard)
   @ApiOperation({
     summary: 'Handle generic webhook events (e.g., incoming messages).',
   })
@@ -43,7 +39,6 @@ export class WebhooksController {
   })
   @ApiCreatedResponse({ description: 'تم معالجة الحدث بنجاح وارجاع نص الرد.' })
   @ApiBadRequestResponse({ description: 'الحمولة غير صحيحة أو ناقصة.' })
-  @ApiUnauthorizedResponse({ description: 'مفتاح API غير صالح أو مفقود.' })
   @HttpCode(HttpStatus.CREATED)
   async handleWebhook(
     @Param('eventType') eventType: string,
