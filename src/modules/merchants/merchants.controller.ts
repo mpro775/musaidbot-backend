@@ -40,11 +40,36 @@ export class MerchantsController {
   constructor(private readonly svc: MerchantsService) {}
 
   @Post()
-  @ApiOperation({ summary: 'إنشاء تاجر جديد' })
+  @ApiOperation({ summary: 'إنشاء تاجر جديد مع الإعدادات الأولية' })
   @ApiBody({ type: CreateMerchantDto })
-  @ApiCreatedResponse()
-  @ApiBadRequestResponse()
-  @ApiUnauthorizedResponse()
+  @ApiCreatedResponse({
+    description: 'تم إنشاء التاجر بنجاح',
+    schema: {
+      example: {
+        _id: '6631ee7fa41377dc5cf730e0',
+        name: 'متجر وردة',
+        email: 'flower@example.com',
+        phone: '9665xxxxxxx',
+        userId: '6623...',
+        status: 'trial',
+        channelConfig: {
+          whatsapp: { phone: '9665xxxxxxx' },
+          telegram: { chatId: '12345678', botToken: 'bot123' },
+        },
+        promptConfig: {
+          dialect: 'gulf',
+          tone: 'ودّي',
+          template: '',
+        },
+        apiToken: 'sk-xxxxx',
+        trialEndsAt: '2025-06-24T00:00:00.000Z',
+        subscriptionExpiresAt: '2025-07-10T00:00:00.000Z',
+        planName: 'free',
+      },
+    },
+  })
+  @ApiBadRequestResponse({ description: 'بيانات ناقصة أو غير صحيحة' })
+  @ApiUnauthorizedResponse({ description: 'التوثيق مطلوب' })
   create(@Body() dto: CreateMerchantDto) {
     return this.svc.create(dto);
   }
@@ -57,22 +82,42 @@ export class MerchantsController {
   }
 
   @Get(':id')
-  @ApiOperation({ summary: 'جلب تاجر حسب المعرّف' })
-  @ApiParam({ name: 'id', type: String })
-  @ApiOkResponse()
-  @ApiNotFoundResponse()
-  @ApiUnauthorizedResponse()
+  @ApiOperation({ summary: 'جلب بيانات تاجر واحد حسب المعرّف' })
+  @ApiParam({ name: 'id', description: 'معرّف التاجر (Mongo ObjectId)' })
+  @ApiOkResponse({
+    description: 'تفاصيل التاجر',
+    schema: {
+      example: {
+        _id: '6631ee7fa41377dc5cf730e0',
+        name: 'متجر تجميل',
+        phone: '9665xxxxxxx',
+        status: 'active',
+        apiToken: 'sk-merchant-token',
+        promptConfig: {
+          dialect: 'formal',
+          tone: 'احترافي',
+          template: '',
+        },
+        channelConfig: {
+          whatsapp: { phone: '9665xxxxxxx' },
+          telegram: { chatId: '12345678', botToken: 'bot:XXX' },
+        },
+      },
+    },
+  })
+  @ApiNotFoundResponse({ description: 'التاجر غير موجود' })
+  @ApiUnauthorizedResponse({ description: 'صلاحية الدخول غير كافية' })
   findOne(@Param('id') id: string) {
     return this.svc.findOne(id);
   }
 
   @Put(':id')
-  @ApiOperation({ summary: 'تحديث بيانات التاجر' })
-  @ApiParam({ name: 'id', type: String })
+  @ApiOperation({ summary: 'تحديث بيانات التاجر بالكامل' })
+  @ApiParam({ name: 'id', description: 'معرّف التاجر' })
   @ApiBody({ type: UpdateMerchantDto })
-  @ApiOkResponse()
-  @ApiNotFoundResponse()
-  @ApiForbiddenResponse()
+  @ApiOkResponse({ description: 'تم التحديث بنجاح' })
+  @ApiNotFoundResponse({ description: 'التاجر غير موجود' })
+  @ApiForbiddenResponse({ description: 'ممنوع على المستخدم تعديل غيره' })
   @ApiUnauthorizedResponse()
   update(
     @Param('id') id: string,
@@ -102,11 +147,18 @@ export class MerchantsController {
   }
 
   @Get(':id/subscription-status')
-  @ApiOperation({ summary: 'فحص حالة الاشتراك' })
-  @ApiParam({ name: 'id', type: String })
-  @ApiOkResponse()
-  @ApiNotFoundResponse()
+  @ApiOperation({ summary: 'التحقق من صلاحية الاشتراك الحالي للتاجر' })
+  @ApiOkResponse({
+    description: 'نتيجة الفحص',
+    schema: {
+      example: {
+        merchantId: '6631ee7fa41377dc5cf730e0',
+        subscriptionActive: true,
+      },
+    },
+  })
   @ApiUnauthorizedResponse()
+  @ApiNotFoundResponse()
   checkSubscription(@Param('id') id: string) {
     return this.svc.isSubscriptionActive(id).then((active) => ({
       merchantId: id,
