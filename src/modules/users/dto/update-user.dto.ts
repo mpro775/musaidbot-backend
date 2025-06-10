@@ -1,5 +1,11 @@
 // src/modules/users/dto/update-user.dto.ts
-import { IsString, IsEmail, MinLength, IsOptional } from 'class-validator';
+import {
+  IsString,
+  IsEmail,
+  MinLength,
+  IsOptional,
+  IsBoolean,
+} from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 
 export class UpdateUserDto {
@@ -20,8 +26,19 @@ export class UpdateUserDto {
   @MinLength(3)
   name?: string;
 
-  @ApiPropertyOptional({ description: 'الدور الجديد', example: 'MERCHANT' })
+  @ApiPropertyOptional({
+    description: 'الدور الجديد',
+    example: 'MERCHANT',
+  })
   @IsOptional()
   @IsString()
   role?: string;
+
+  @ApiPropertyOptional({
+    description: 'حالة أول تسجيل دخول (لتوجيه Onboarding)',
+    example: false,
+  })
+  @IsOptional()
+  @IsBoolean()
+  firstLogin?: boolean;
 }

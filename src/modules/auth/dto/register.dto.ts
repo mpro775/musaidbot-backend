@@ -1,12 +1,6 @@
 // src/modules/auth/dto/register.dto.ts
 import { ApiProperty } from '@nestjs/swagger';
-import {
-  IsEmail,
-  IsNotEmpty,
-  IsString,
-  MinLength,
-  IsOptional,
-} from 'class-validator';
+import { IsEmail, IsNotEmpty, IsString, MinLength } from 'class-validator';
 
 export class RegisterDto {
   @ApiProperty({
@@ -31,26 +25,4 @@ export class RegisterDto {
   @MinLength(3)
   @IsNotEmpty()
   name: string;
-
-  @ApiProperty({ description: 'رقم الجوال', example: '9665XXXXXXX' })
-  @IsString()
-  @IsNotEmpty()
-  phone: string;
-
-  @ApiProperty({
-    description: 'اسم المتجر الخاص بالتاجر',
-    example: 'عطور الفخامة',
-  })
-  @IsString()
-  @IsNotEmpty()
-  storeName: string;
-
-  @ApiProperty({
-    description: 'رقم واتساب للردود (اختياري)',
-    example: '9665XXXXXXX',
-    required: false,
-  })
-  @IsOptional()
-  @IsString()
-  whatsappNumber?: string;
 }

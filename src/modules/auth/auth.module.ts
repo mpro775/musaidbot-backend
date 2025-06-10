@@ -1,4 +1,5 @@
 // src/modules/auth/auth.module.ts
+
 import { Module } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
@@ -7,9 +8,13 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 
 import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
-import { User, UserSchema } from '../users/schemas/user.schema';
-import { Merchant, MerchantSchema } from '../merchants/schemas/merchant.schema'; // ← استورد تعريف التاجر
 import { JwtStrategy } from './strategies/jwt.strategy';
+
+import { UsersModule } from '../users/users.module';
+import { MerchantsModule } from '../merchants/merchants.module';
+
+import { User, UserSchema } from '../users/schemas/user.schema';
+import { Merchant, MerchantSchema } from '../merchants/schemas/merchant.schema'; // ← استيراد الـ schema
 
 @Module({
   imports: [
@@ -17,20 +22,24 @@ import { JwtStrategy } from './strategies/jwt.strategy';
     PassportModule.register({ defaultStrategy: 'jwt' }),
     JwtModule.registerAsync({
       imports: [ConfigModule],
-      useFactory: (configService: ConfigService) => ({
-        secret: configService.get<string>('JWT_SECRET'),
+      useFactory: (config: ConfigService) => ({
+        secret: config.get<string>('JWT_SECRET'),
         signOptions: { expiresIn: '7d' },
       }),
       inject: [ConfigService],
     }),
 
+    // سجّل هنا كلا الـ schemas معاً
     MongooseModule.forFeature([
       { name: User.name, schema: UserSchema },
-      { name: Merchant.name, schema: MerchantSchema }, // ← أضف هذا السطر
+      { name: Merchant.name, schema: MerchantSchema }, // ← إضافة هذا السطر
     ]),
+
+    UsersModule,
+    MerchantsModule, // لازمه ل AuthController الذي يستعمل MerchantsService
   ],
-  providers: [AuthService, JwtStrategy],
   controllers: [AuthController],
+  providers: [AuthService, JwtStrategy],
   exports: [AuthService],
 })
 export class AuthModule {}

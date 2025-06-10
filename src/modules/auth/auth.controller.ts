@@ -1,17 +1,25 @@
 import {
   Controller,
   Post,
+  Put,
   Body,
   UseGuards,
-  Request,
   HttpCode,
   HttpStatus,
+  Req,
+  BadRequestException,
 } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
+import { OnboardingDto } from './dto/onboarding.dto';
+
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
-import { RequestWithUser } from 'src/common/interfaces/request-with-user.interface';
+import { RequestWithUser } from '../../common/interfaces/request-with-user.interface';
+
+import { MerchantsService } from '../merchants/merchants.service';
+import { UsersService } from '../users/users.service';
+
 import {
   ApiTags,
   ApiOperation,
@@ -26,19 +34,19 @@ import {
 @ApiTags('المصادقة')
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(
+    private readonly authService: AuthService,
+    private readonly merchantService: MerchantsService,
+    private readonly userService: UsersService,
+  ) {}
 
   @Post('register')
-  @ApiOperation({ summary: 'تسجيل مستخدم جديد' })
-  @ApiBody({
-    type: RegisterDto,
-    description: 'بيانات التسجيل: البريد الإلكتروني، كلمة المرور، الاسم',
+  @ApiOperation({
+    summary: 'تسجيل مستخدم جديد (الحقول: اسم، إيميل، كلمة المرور)',
   })
-  @ApiCreatedResponse({ description: 'تم تسجيل المستخدم بنجاح' })
-  @ApiBadRequestResponse({
-    description: 'طلب غير صالح: بيانات مفقودة أو تنسيق خاطئ',
-  })
-  @ApiUnauthorizedResponse({ description: 'البريد الإلكتروني مستخدم مسبقًا' })
+  @ApiBody({ type: RegisterDto })
+  @ApiCreatedResponse({ description: 'تم التسجيل بنجاح' })
+  @ApiBadRequestResponse({ description: 'خطأ في البيانات أو الإيميل موجود' })
   @HttpCode(HttpStatus.CREATED)
   register(@Body() registerDto: RegisterDto) {
     return this.authService.register(registerDto);
@@ -46,43 +54,50 @@ export class AuthController {
 
   @Post('login')
   @ApiOperation({ summary: 'تسجيل الدخول وإرجاع توكن JWT' })
-  @ApiBody({
-    type: LoginDto,
-    description: 'بيانات الاعتماد: البريد الإلكتروني وكلمة المرور',
-  })
-  @ApiOkResponse({
-    description: 'تم تسجيل الدخول بنجاح وتم إرجاع التوكن',
-    schema: { example: { accessToken: 'jwt-token-here' } },
-  })
+  @ApiBody({ type: LoginDto })
+  @ApiOkResponse({ description: 'تم تسجيل الدخول بنجاح' })
   @ApiUnauthorizedResponse({ description: 'بيانات الاعتماد غير صحيحة' })
   login(@Body() loginDto: LoginDto) {
     return this.authService.login(loginDto);
   }
 
-  @Post('profile')
-  @ApiBearerAuth()
   @UseGuards(JwtAuthGuard)
-  @ApiOperation({ summary: 'جلب بيانات المستخدم الحالي (محمي)' })
+  @ApiBearerAuth()
+  @Put('onboarding')
+  @ApiOperation({ summary: 'استكمال بيانات المتجر بعد التسجيل' })
+  @ApiBody({ type: OnboardingDto })
   @ApiOkResponse({
-    description: 'تم إرجاع ملف المستخدم',
-    schema: {
-      example: {
-        userId: '123',
-        email: 'user@example.com',
-        name: 'اسم المستخدم',
-        role: 'user',
-      },
-    },
+    description: 'تم تحديث بيانات المتجر وإتمام الـ onboarding',
   })
-  @ApiUnauthorizedResponse({ description: 'توكن JWT مفقود أو غير صالح' })
-  getProfile(@Request() req: RequestWithUser) {
-    return req.user;
+  @ApiUnauthorizedResponse({ description: 'توكن غير صالح' })
+  async completeOnboarding(
+    @Req() { user }: RequestWithUser,
+    @Body() dto: OnboardingDto,
+  ) {
+    if (!user.merchantId) {
+      throw new BadRequestException('merchantId missing from token');
+    }
+
+    // 1. تحديث بيانات التاجر
+    await this.merchantService.update(
+      user.merchantId, // الآن من النوع string
+      {
+        name: dto.name, // هنا
+        logoUrl: dto.logoUrl,
+        phone: dto.phone,
+        whatsappNumber: dto.whatsappNumber,
+      },
+    );
+
+    // 2. تأكد من وجود user.id أيضاً
+    if (!user.id) {
+      throw new BadRequestException('userId missing from token');
+    }
+
+    // 3. تعيين firstLogin = false
+    await this.userService.setFirstLoginFalse(user.id);
+
+    // 4. إعادة بيانات المستخدم المحدثة
+    return this.userService.findOne(user.id);
   }
 }
-
-/**
- * النواقص:
- * - يمكن إضافة @ApiForbiddenResponse إذا كان هناك تمييز في الصلاحيات.
- * - توثيق الحقول الدقيقة في RegisterDto وLoginDto (الحد الأدنى للطول، القواعد).
- * - توضيح حالة إعادة إرسال رابط التفعيل أو إعادة تعيين كلمة المرور.
- */
