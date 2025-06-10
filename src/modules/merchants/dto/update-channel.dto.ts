@@ -1,5 +1,10 @@
 // src/modules/merchants/dto/update-channel.dto.ts
-import { IsOptional, IsString, ValidateNested } from 'class-validator';
+import {
+  IsObject,
+  IsOptional,
+  IsString,
+  ValidateNested,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 
 class WhatsAppConfig {
@@ -16,9 +21,34 @@ export class UpdateChannelDto {
   @Type(() => WhatsAppConfig)
   @IsOptional()
   whatsapp?: WhatsAppConfig;
+  @IsOptional()
+  @IsString()
+  apiToken: string;
 
+  @IsOptional()
+  @IsObject()
+  channelConfig: {
+    telegram?: {
+      chatId?: string;
+      botToken?: string;
+    };
+    whatsapp?: {
+      phone?: string;
+    };
+  };
   @ValidateNested()
   @Type(() => TelegramConfig)
   @IsOptional()
   telegram?: TelegramConfig;
+  @IsOptional()
+  @IsString()
+  businessType: string;
+
+  @IsOptional()
+  @IsString()
+  businessDescription: string;
+
+  @IsOptional()
+  @IsString()
+  preferredDialect: string;
 }

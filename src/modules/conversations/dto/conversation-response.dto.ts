@@ -1,21 +1,6 @@
 // src/modules/conversations/dto/conversation-response.dto.ts
 import { ApiProperty } from '@nestjs/swagger';
 
-export class MessageDto {
-  @ApiProperty({ description: 'المرسل (customer|bot)' })
-  sender: string;
-
-  @ApiProperty({ description: 'نص الرسالة' })
-  text: string;
-
-  @ApiProperty({
-    description: 'طابع الوقت للرسالة (ISO)',
-    type: String,
-    example: new Date().toISOString(),
-  })
-  timestamp: Date;
-}
-
 export class ConversationResponseDto {
   @ApiProperty({ description: 'معرّف المحادثة' })
   _id: string;
@@ -26,20 +11,17 @@ export class ConversationResponseDto {
   @ApiProperty({ description: 'معرّف المستخدم أو رقم العميل' })
   userId: string;
 
-  @ApiProperty({ type: [MessageDto], description: 'قائمة الرسائل في المحادثة' })
-  messages: MessageDto[];
-
   @ApiProperty({
-    description: 'تاريخ الإنشاء',
+    description: 'تاريخ الإنشاء (ISO 8601)',
     type: String,
     example: new Date().toISOString(),
   })
-  createdAt: Date;
+  createdAt: string; // <-- string بدل Date
 
   @ApiProperty({
-    description: 'تاريخ آخر تعديل',
+    description: 'تاريخ آخر تعديل (ISO 8601)',
     type: String,
     example: new Date().toISOString(),
   })
-  updatedAt: Date;
+  updatedAt: string; // <-- string بدل Date
 }

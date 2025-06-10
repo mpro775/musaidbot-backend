@@ -14,39 +14,45 @@ export class Merchant {
   @Prop() logoUrl: string;
   @Prop() address: string;
 
-  // يصبح true عند أول تفعيل (حتى نهاية التجربة أو الدفع)
-  @Prop({ default: false }) isActive: boolean;
+  // الحالة: trial / active / banned
+  @Prop({
+    required: true,
+    enum: ['trial', 'active', 'banned'],
+    default: 'trial',
+  })
+  status: 'trial' | 'active' | 'banned';
 
-  // خطة الاشتراك الفعلية بعد انتهاء التجربة
+  @Prop({ default: false }) isActive: boolean;
   @Prop({ default: 'free' }) planName: string;
 
-  // تاريخ نهاية فترة التجربة المجانية
-  @Prop({ default: () => new Date(Date.now() + 14 * 24 * 60 * 60 * 1000) })
+  @Prop({
+    required: true,
+    default: () => new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
+  })
   trialEndsAt: Date;
 
-  // حقل يشير إن دفع بعد انتهاء التجربة
   @Prop({ default: false }) planPaid: boolean;
 
-  // إعدادات قنوات الاتصال
   @Prop({
     type: {
-      whatsapp: {
-        token: { type: String },
-        number: { type: String },
-      },
-      telegram: {
-        token: { type: String },
-        botUsername: { type: String },
-      },
+      whatsapp: { token: String, number: String },
+      telegram: { token: String, botUsername: String },
     },
     _id: false,
   })
+  @Prop({ type: Object }) // أو استخدم Schema type حسب الحاجة
   channelConfig: {
-    whatsapp?: { token: string; number: string };
-    telegram?: { token: string; botUsername: string };
+    telegram?: {
+      chatId?: string;
+      botToken?: string;
+    };
+    whatsapp?: {
+      phone?: string;
+    };
   };
+  @Prop()
+  apiToken: string;
 
-  // إعدادات الـ Prompt كما سبق
   @Prop({
     type: {
       dialect: { type: String, default: 'خليجي' },
@@ -69,6 +75,13 @@ export class Merchant {
 
   @Prop({ type: Types.ObjectId, ref: 'User', required: true })
   userId: Types.ObjectId;
-}
+  @Prop()
+  businessType: string;
 
+  @Prop()
+  businessDescription: string;
+
+  @Prop({ default: 'formal' }) // القيم الممكنة: 'formal', 'gulf', 'egyptian', إلخ
+  preferredDialect: string;
+}
 export const MerchantSchema = SchemaFactory.createForClass(Merchant);

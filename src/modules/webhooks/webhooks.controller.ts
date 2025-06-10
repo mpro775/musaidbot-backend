@@ -4,18 +4,15 @@ import {
   Body,
   Param,
   UseGuards,
-  Request,
-  BadRequestException,
   HttpCode,
   HttpStatus,
+  BadRequestException,
 } from '@nestjs/common';
 import { WebhooksService } from './webhooks.service';
 import { HandleWebhookDto } from './dto/handle-webhook.dto';
-import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { ApiKeyGuard } from 'src/common/guards/api-key.guard';
 import {
   ApiTags,
-  ApiBearerAuth,
   ApiOperation,
   ApiParam,
   ApiBody,
@@ -30,68 +27,40 @@ export class WebhooksController {
   constructor(private readonly webhooksService: WebhooksService) {}
 
   @Post(':eventType')
-  @UseGuards(JwtAuthGuard)
-  @ApiBearerAuth()
+  @UseGuards(ApiKeyGuard)
+  @ApiOperation({
+    summary: 'Handle generic webhook events (e.g., incoming messages).',
+  })
   @ApiParam({
     name: 'eventType',
-    type: 'string',
-    description: 'نوع الحدث (مثال: product.updated)',
+    type: String,
+    description:
+      'نوع الحدث (مثل whatsapp_incoming, telegram_incoming, product.updated).',
   })
   @ApiBody({
     type: HandleWebhookDto,
-    description: 'بيانات الحدث الواردة من n8n أو المصدر الخارجي',
+    description: 'Payload for the webhook event.',
   })
-  @ApiCreatedResponse({ description: 'تم استلام الحدث وحفظه بنجاح' })
-  @ApiBadRequestResponse({
-    description: 'طلب غير صالح: تنسيق الحمولة خاطئ أو مفقود',
-  })
-  @ApiUnauthorizedResponse({
-    description: 'غير مصرح: توكن JWT غير صالح أو مفقود',
-  })
+  @ApiCreatedResponse({ description: 'تم معالجة الحدث بنجاح وارجاع نص الرد.' })
+  @ApiBadRequestResponse({ description: 'الحمولة غير صحيحة أو ناقصة.' })
+  @ApiUnauthorizedResponse({ description: 'مفتاح API غير صالح أو مفقود.' })
   @HttpCode(HttpStatus.CREATED)
   async handleWebhook(
     @Param('eventType') eventType: string,
-    @Body() handleDto: HandleWebhookDto,
+    @Body() dto: HandleWebhookDto,
   ) {
-    return this.webhooksService.handleEvent(eventType, handleDto.payload || {});
-  }
-
-  @Post('whatsapp_incoming')
-  @UseGuards(ApiKeyGuard)
-  @ApiOperation({
-    summary: 'استقبال رسائل الواتساب الواردة (API Key protected)',
-  })
-  @ApiBody({
-    schema: {
-      example: {
-        merchantId: '123',
-        from: '+123456789',
-        messageText: 'نص الرسالة',
-      },
-    },
-    description: 'بيانات رسالة الواتساب الواردة',
-  })
-  @ApiCreatedResponse({ description: 'تم استلام رسالة الواتساب وحفظها بنجاح' })
-  @ApiBadRequestResponse({ description: 'طلب غير صالح: الحقول مطلوبة' })
-  @HttpCode(HttpStatus.CREATED)
-  async handleWhatsappWebhook(@Body() payload: any) {
-    const { merchantId, from, messageText } = payload;
+    const { merchantId, from, messageText, metadata } = dto.payload || {};
     if (!merchantId || !from || !messageText) {
       throw new BadRequestException(
-        'الحقول merchantId وfrom وmessageText مطلوبة',
+        'الحقول merchantId وfrom وmessageText مطلوبة.',
       );
     }
-    return this.webhooksService.handleEvent('whatsapp_incoming', {
+
+    return this.webhooksService.handleEvent(eventType, {
       merchantId,
       from,
       messageText,
+      metadata,
     });
   }
 }
-
-/**
- * النواقص:
- * - إضافة @ApiNotFoundResponse إذا كانت النقطة تحتاج التحقق من وجود المورد.
- * - توثيق مفصل لهيكل HandleWebhookDto وحقول payload.
- * - يمكن إضافة أمثلة JSON أكثر في ApiCreatedResponse باستخدام schema.example.
- */

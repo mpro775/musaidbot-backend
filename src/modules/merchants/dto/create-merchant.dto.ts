@@ -5,6 +5,7 @@ import {
   IsUrl,
   IsEmail,
   ValidateNested,
+  IsObject,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { PromptConfigDto } from './prompt-config.dto';
@@ -34,6 +35,21 @@ export class CreateMerchantDto {
   @IsOptional()
   address?: string;
 
+  @IsOptional()
+  @IsString()
+  apiToken: string;
+
+  @IsOptional()
+  @IsObject()
+  channelConfig: {
+    telegram?: {
+      chatId?: string;
+      botToken?: string;
+    };
+    whatsapp?: {
+      phone?: string;
+    };
+  };
   @IsString()
   @IsNotEmpty()
   userId: string;
@@ -43,4 +59,16 @@ export class CreateMerchantDto {
   @Type(() => PromptConfigDto)
   @IsOptional()
   promptConfig?: PromptConfigDto;
+
+  @IsOptional()
+  @IsString()
+  businessType: string;
+
+  @IsOptional()
+  @IsString()
+  businessDescription: string;
+
+  @IsOptional()
+  @IsString()
+  preferredDialect: string;
 }

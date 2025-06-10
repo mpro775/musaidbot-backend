@@ -51,7 +51,7 @@ export class ScrapeQueue implements OnModuleInit {
             // فقط تحديث السعر والتوفر + lastFetchedAt
             await this.productsService.updateAfterScrape(productId, {
               price: (result as any).price,
-              isAvailable: (result as any).inStock,
+              isAvailable: (result as any).isAvailable,
               lastFetchedAt: now,
               errorState: '',
             });
@@ -60,7 +60,7 @@ export class ScrapeQueue implements OnModuleInit {
             const {
               name,
               price,
-              inStock,
+              isAvailable,
               images,
               description,
               category,
@@ -72,7 +72,7 @@ export class ScrapeQueue implements OnModuleInit {
             await this.productsService.updateAfterScrape(productId, {
               name,
               price,
-              isAvailable: inStock,
+              isAvailable: isAvailable,
               images,
               description,
               category,

@@ -6,11 +6,25 @@ import {
 } from '@nestjs/common';
 import { chromium, Page } from 'playwright';
 import { zidSelectors } from './selectors-config';
+import { Cron, CronExpression } from '@nestjs/schedule';
+import { InjectQueue } from '@nestjs/bull';
+import { Queue } from 'bullmq';
 
 @Injectable()
 export class ScraperService {
   private readonly logger = new Logger(ScraperService.name);
+  constructor(@InjectQueue('scraper') private readonly scraperQueue: Queue) {}
+  @Cron(CronExpression.EVERY_10_MINUTES)
+  async scheduleMinimalScrape() {
+    this.logger.debug('Enqueue minimal scrape');
+    await this.scraperQueue.add('scrape', { mode: 'minimal' });
+  }
 
+  @Cron(CronExpression.EVERY_WEEK)
+  async scheduleFullScrape() {
+    this.logger.debug('Enqueue weekly full scrape');
+    await this.scraperQueue.add('scrape', { mode: 'full' });
+  }
   /** يحاول عدة selectors حتى يجد قيمة نصية */
   private async trySelectors(page: Page, selectors: string[]): Promise<string> {
     for (const selector of selectors) {
@@ -61,12 +75,12 @@ export class ScraperService {
     url: string,
     options: { mode: 'full' | 'minimal' } = { mode: 'full' },
   ): Promise<
-    | { price: number; inStock: boolean }
+    | { price: number; isAvailable: boolean }
     | {
         platform: string;
         name: string;
         price: number;
-        inStock: boolean;
+        isAvailable: boolean;
         images: string[];
         description: string;
         category: string;
@@ -90,10 +104,10 @@ export class ScraperService {
           zidSelectors.lowQuantity,
         );
         // إذا وجدت كلمة "نفد" نعتبره غير متوفر
-        const inStock = !/نفد/i.test(lowQuantity);
+        const isAvailable = !/نفد/i.test(lowQuantity);
 
         await browser.close();
-        return { price, inStock };
+        return { price, isAvailable };
       }
 
       // ---------- الوضع full (كل المعلومات) ----------
@@ -119,12 +133,12 @@ export class ScraperService {
       // الصور
       const images = await this.tryImageSelectors(page, zidSelectors.images);
 
-      // التوفر (نستخدم lowQuantity لاشتقاق inStock أيضاً)
+      // التوفر (نستخدم lowQuantity لاشتقاق isAvailable أيضاً)
       const lowQuantity = await this.trySelectors(
         page,
         zidSelectors.lowQuantity,
       );
-      const inStock = !/نفد/i.test(lowQuantity);
+      const isAvailable = !/نفد/i.test(lowQuantity);
 
       // specifications block
       const specsBlock = await page.$$eval(
@@ -140,7 +154,7 @@ export class ScraperService {
         platform,
         name: fullName,
         price,
-        inStock,
+        isAvailable,
         images,
         description,
         category,

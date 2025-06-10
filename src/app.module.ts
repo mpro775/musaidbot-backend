@@ -21,8 +21,6 @@ import { DatabaseConfigModule } from './config/database.config';
 import { AuthModule } from './modules/auth/auth.module';
 import { UsersModule } from './modules/users/users.module';
 import { ProductsModule } from './modules/products/products.module';
-import { ResponseModule } from './modules/responses/response.module';
-import { WhatsappModule } from './modules/whatsapp/whatsapp.module';
 import { MerchantsModule } from './modules/merchants/merchants.module';
 import { ConversationsModule } from './modules/conversations/conversations.module';
 import { PlansModule } from './modules/plans/plans.module';
@@ -31,6 +29,8 @@ import { ScraperModule } from './modules/scraper/scraper.module';
 import { RolesGuard } from './common/guards/roles.guard';
 import { HttpMetricsInterceptor } from './common/interceptors/http-metrics.interceptor';
 import { WebhooksModule } from './modules/webhooks/webhooks.module';
+import { AnalyticsModule } from './modules/analytics/analytics.module';
+import { MessagingModule } from './modules/messaging/message.module';
 
 @Module({
   imports: [
@@ -77,13 +77,13 @@ import { WebhooksModule } from './modules/webhooks/webhooks.module';
     AuthModule,
     UsersModule,
     ProductsModule,
-    ResponseModule,
-    WhatsappModule,
+    MessagingModule,
     MerchantsModule,
     ConversationsModule,
     PlansModule,
     WebhooksModule,
     ScraperModule,
+    AnalyticsModule,
   ],
   providers: [
     // 1) Guard للأدوار
