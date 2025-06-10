@@ -19,6 +19,7 @@ COPY . .
 RUN npm ci
 RUN npx playwright install
 RUN npm run build
+RUN echo "✅ ملفات في dist:" && ls -l dist
 
 ENV NODE_ENV=production
 CMD ["node", "dist/main.js"]
