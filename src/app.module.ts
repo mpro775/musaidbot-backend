@@ -63,11 +63,9 @@ import { MessagingModule } from './modules/messaging/message.module';
 
     // Bull (Redis) for queues
     BullModule.forRoot({
-      redis: {
-        host: process.env.REDIS_HOST || 'localhost',
-        port: parseInt(process.env.REDIS_PORT ?? '6379', 10),
-      },
+      redis: process.env.REDIS_URL,
     }),
+
     BullModule.registerQueue({ name: 'scrape' }),
 
     // Database
