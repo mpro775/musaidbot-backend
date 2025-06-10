@@ -12,7 +12,7 @@ RUN apk add --no-cache \
     libstdc++ \
     dumb-init
 
-WORKDIR /app
+WORKDIR /usr/src/app
 
 COPY . .
 
