@@ -1,5 +1,6 @@
 FROM node:18-alpine
 
+# تثبيت التبعيات اللازمة لـ Playwright
 RUN apk add --no-cache \
     chromium \
     nss \
@@ -11,7 +12,7 @@ RUN apk add --no-cache \
     libstdc++ \
     dumb-init
 
-WORKDIR /usr/src/app
+WORKDIR /app
 
 COPY . .
 
