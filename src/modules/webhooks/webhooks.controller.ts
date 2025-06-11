@@ -19,7 +19,7 @@ import {
 } from '@nestjs/swagger';
 
 @ApiTags('Webhooks')
-@Controller('webhook')
+@Controller('webhooks')
 export class WebhooksController {
   constructor(private readonly webhooksService: WebhooksService) {}
 

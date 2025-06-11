@@ -61,7 +61,15 @@ export class ConversationsService {
     if (!convo) throw new NotFoundException('Conversation not found');
     return convo;
   }
-
+  async findOrCreateConversation(merchantId: string, userId: string) {
+    let conv = await this.conversationModel
+      .findOne({ merchantId, userId })
+      .exec();
+    if (!conv) {
+      conv = await this.conversationModel.create({ merchantId, userId });
+    }
+    return conv;
+  }
   /** حذف المحادثة */
   async remove(id: string): Promise<{ message: string }> {
     await this.conversationModel.deleteOne({ _id: id }).exec();
