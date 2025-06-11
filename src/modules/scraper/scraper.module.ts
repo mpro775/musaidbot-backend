@@ -1,17 +1,15 @@
-import { BullModule } from '@nestjs/bull';
+// src/modules/scraper/scraper.module.ts
 import { Module } from '@nestjs/common';
+import { BullModule } from '@nestjs/bull';
 import { ScraperService } from './scraper.service';
 import { ScraperController } from './scraper.controller';
 
 @Module({
-  providers: [ScraperService],
   imports: [
-    // سجل الـ queue باسم "scraper"
-    BullModule.registerQueue({
-      name: 'scraper',
-    }),
-    // ... أي imports أخرى
+    // سجل الطابور هنا باسم "scrape"
+    BullModule.registerQueue({ name: 'scrape' }),
   ],
+  providers: [ScraperService],
   controllers: [ScraperController],
   exports: [ScraperService],
 })

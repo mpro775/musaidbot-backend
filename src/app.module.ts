@@ -3,11 +3,11 @@
 import { Module } from '@nestjs/common';
 import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 
-import { ConfigModule } from '@nestjs/config';
+import { ConfigModule, ConfigService } from '@nestjs/config';
 import { ScheduleModule } from '@nestjs/schedule';
 import { CacheModule } from '@nestjs/cache-manager';
 import * as redisStore from 'cache-manager-ioredis';
-import { BullModule } from '@nestjs/bull';
+import { BullModule, BullModuleOptions } from '@nestjs/bull';
 
 import {
   PrometheusModule,
@@ -31,6 +31,8 @@ import { HttpMetricsInterceptor } from './common/interceptors/http-metrics.inter
 import { WebhooksModule } from './modules/webhooks/webhooks.module';
 import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { MessagingModule } from './modules/messaging/message.module';
+import { RedisConfig } from './config/redis.config';
+import { RedisModule } from './config/redis.module';
 
 @Module({
   imports: [
@@ -60,16 +62,26 @@ import { MessagingModule } from './modules/messaging/message.module';
 
     // Scheduler
     ScheduleModule.forRoot(),
+    RedisModule,
 
     // Bull (Redis) for queues
-    BullModule.forRoot({
-      redis: {
-        host: process.env.REDIS_HOST,
-        port: parseInt(process.env.REDIS_PORT ?? '6379', 10),
-        password: process.env.REDIS_PASSWORD,
+    BullModule.forRootAsync({
+      imports: [RedisModule],
+      useFactory: (config: ConfigService): BullModuleOptions => {
+        const url = config.get<string>('REDIS_URL');
+        if (!url) throw new Error('REDIS_URL not defined');
+        const parsed = new URL(url);
+        return {
+          redis: {
+            host: parsed.hostname,
+            port: parseInt(parsed.port, 10),
+            password: parsed.password || undefined,
+            tls: parsed.protocol === 'rediss:' ? {} : undefined,
+          },
+        };
       },
+      inject: [ConfigService],
     }),
-
     // Database
     DatabaseConfigModule,
 
@@ -88,7 +100,7 @@ import { MessagingModule } from './modules/messaging/message.module';
   providers: [
     // 1) Guard للأدوار
     { provide: APP_GUARD, useClass: RolesGuard },
-
+    RedisConfig,
     // 2) تعريف الـ histogram لقياس زمن الطلبات
     makeHistogramProvider({
       name: 'http_request_duration_seconds',

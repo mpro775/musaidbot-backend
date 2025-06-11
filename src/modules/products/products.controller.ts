@@ -13,6 +13,7 @@ import {
   HttpCode,
   UseInterceptors,
   ClassSerializerInterceptor,
+  BadRequestException,
 } from '@nestjs/common';
 import { plainToInstance } from 'class-transformer';
 import { Types } from 'mongoose';
@@ -81,7 +82,7 @@ export class ProductsController {
       throw new ForbiddenException('Insufficient role');
     }
 
-    const merchantId = req.user.merchantId!;
+    const merchantId = req.user.merchantId;
     const merchantObjectId = new Types.ObjectId(merchantId);
 
     // 1) إنشاء الوثيقة في الـ DB
@@ -146,14 +147,22 @@ export class ProductsController {
     if (req.user.role !== 'MERCHANT' && req.user.role !== 'ADMIN') {
       throw new ForbiddenException('Insufficient role');
     }
-    const docs = await this.productsService.findAllByMerchant(
-      req.user.merchantId!,
-    );
-    return plainToInstance(ProductResponseDto, docs, {
-      excludeExtraneousValues: true,
-    });
-  }
 
+    const merchantIdStr = req.user.merchantId;
+    if (!merchantIdStr) {
+      throw new BadRequestException('merchantId missing in token payload');
+    }
+
+    // حوّل النص إلى ObjectId قبل الاستعلام
+    const merchantObjectId = new Types.ObjectId(merchantIdStr);
+
+    // جلب المستندات الحقيقية
+    const docs = await this.productsService.findAllByMerchant(merchantObjectId);
+    // (اختياري) لوج للتأكد
+    console.log(`Found ${docs.length} products for merchant ${merchantIdStr}`);
+
+    return plainToInstance(ProductResponseDto, docs);
+  }
   @Get(':id')
   @ApiParam({ name: 'id', type: 'string', description: 'معرّف المنتج' })
   @ApiOperation({ summary: 'جلب منتج واحد حسب المعرّف' })

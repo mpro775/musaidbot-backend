@@ -47,10 +47,12 @@ export class ProductsService {
     return this.scrapeQueue.addJob(jobData);
   }
 
-  async findAllByMerchant(merchantId: string): Promise<ProductDocument[]> {
-    return this.productModel.find({ merchantId }).exec();
+  async findAllByMerchant(merchantObjectId: Types.ObjectId): Promise<any[]> {
+    return this.productModel
+      .find({ merchantId: merchantObjectId })
+      .lean()
+      .exec();
   }
-
   // **هنا**: نجد أنّ return type هو ProductDocument
   async findOne(id: string): Promise<ProductDocument> {
     const prod = await this.productModel.findById(id).exec();

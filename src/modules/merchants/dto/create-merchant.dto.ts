@@ -1,132 +1,52 @@
-import {
-  IsString,
-  IsNotEmpty,
-  IsOptional,
-  IsUrl,
-  IsEmail,
-  ValidateNested,
-  IsObject,
-} from 'class-validator';
-import { Type } from 'class-transformer';
+// src/modules/merchants/dto/create-merchant.dto.ts
+import { ApiPropertyOptional } from '@nestjs/swagger';
+import { IsString, IsOptional, Matches, IsUrl } from 'class-validator';
 import { PromptConfigDto } from './prompt-config.dto';
-import { ApiProperty } from '@nestjs/swagger';
 
 export class CreateMerchantDto {
+  @ApiPropertyOptional({ description: 'البريد الإلكتروني' })
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
-  @ApiProperty({ description: 'اسم المتجر', example: 'متجر عطور النخبة' })
-  name: string;
+  email?: string;
 
-  @IsEmail()
-  @IsNotEmpty()
-  @ApiProperty({
-    description: 'البريد الإلكتروني للتاجر',
-    example: 'store@example.com',
-  })
-  email: string;
-
+  @ApiPropertyOptional({ description: 'رقم الجوال' })
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
-  @ApiProperty({ description: 'رقم جوال التاجر', example: '9665XXXXXXX' })
-  phone: string;
+  phone?: string;
 
-  @IsString()
-  @IsNotEmpty()
-  @ApiProperty({
-    description: 'رقم واتساب الرسمي للردود',
-    example: '9665XXXXXXX',
-  })
-  whatsappNumber: string;
+  @ApiPropertyOptional({ description: 'رقم واتساب' })
+  @IsOptional()
+  @Matches(/^\+?\d{7,15}$/)
+  whatsappNumber?: string;
 
+  @ApiPropertyOptional({ description: 'رابط Webhook للبوت' })
+  @IsOptional()
   @IsUrl()
-  @IsOptional()
-  @ApiProperty({
-    description: 'رابط شعار المتجر (اختياري)',
-    example: 'https://cdn.com/logo.png',
-    required: false,
-  })
-  logoUrl?: string;
+  webhookUrl?: string;
 
-  @IsString()
+  @ApiPropertyOptional({ description: 'إعدادات القنوات' })
   @IsOptional()
-  @ApiProperty({
-    description: 'عنوان المتجر (اختياري)',
-    example: 'الرياض - المملكة العربية السعودية',
-    required: false,
-  })
-  address?: string;
-
-  @IsOptional()
-  @IsString()
-  @ApiProperty({
-    description: 'Token خاص بالتاجر للربط الآمن',
-    example: 'sk-xxxxx',
-    required: false,
-  })
-  apiToken: string;
-
-  @IsOptional()
-  @IsObject()
-  @ApiProperty({
-    description: 'إعدادات القنوات (واتساب، تيليجرام)',
-    example: {
-      whatsapp: { phone: '9665XXXXXXX' },
-      telegram: { chatId: '123456789', botToken: 'bot:ABCDEF' },
-    },
-    required: false,
-  })
-  channelConfig: {
-    telegram?: {
-      chatId?: string;
-      botToken?: string;
-    };
-    whatsapp?: {
-      phone?: string;
-    };
+  channelConfig?: {
+    telegram?: { chatId?: string; token?: string };
+    whatsapp?: { phone?: string };
   };
-  @IsString()
-  @IsNotEmpty()
-  @ApiProperty({
-    description: 'معرّف المستخدم المرتبط بالتاجر',
-    example: '6623abcd1234ef5678',
-  })
-  userId: string;
 
-  // هنا نستخدم ValidateNested + Type لتحويل الجسم إلى PromptConfigDto
-  @ValidateNested()
-  @Type(() => PromptConfigDto)
+  @ApiPropertyOptional({ description: 'تكوين الردود' })
   @IsOptional()
-  @ApiProperty({
-    description: 'تكوين الردود (نغمة، لهجة، قالب مخصص)',
-    required: false,
-    type: () => PromptConfigDto,
-  })
   promptConfig?: PromptConfigDto;
 
+  @ApiPropertyOptional({ description: 'فئة المتجر' })
   @IsOptional()
   @IsString()
-  @ApiProperty({
-    description: 'نوع النشاط التجاري',
-    example: 'منتجات تجميل طبيعية',
-    required: false,
-  })
-  businessType: string;
+  businessType?: string;
 
+  @ApiPropertyOptional({ description: 'وصف المتجر' })
   @IsOptional()
   @IsString()
-  @ApiProperty({
-    description: 'وصف قصير للمتجر أو USP',
-    example: 'نقدم منتجات عضوية 100% بتغليف فاخر',
-    required: false,
-  })
-  businessDescription: string;
+  businessDescription?: string;
 
+  @ApiPropertyOptional({ description: 'اللهجة المفضلة' })
   @IsOptional()
   @IsString()
-  @ApiProperty({
-    description: 'اللهجة المفضلة للردود',
-    example: 'gulf',
-    required: false,
-  })
-  preferredDialect: string;
+  preferredDialect?: string;
 }

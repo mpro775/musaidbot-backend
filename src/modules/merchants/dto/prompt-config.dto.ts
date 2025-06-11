@@ -1,31 +1,34 @@
-import { ApiProperty } from '@nestjs/swagger';
-import { IsString, IsOptional } from 'class-validator';
+// src/modules/merchants/dto/prompt-config.dto.ts
+import { ApiPropertyOptional } from '@nestjs/swagger';
+import { IsString, IsOptional, IsIn, MaxLength } from 'class-validator';
 
 export class PromptConfigDto {
-  @IsString()
-  @IsOptional()
-  @ApiProperty({
-    description: 'اللهجة (مثل: فصحى، خليجية، مصرية)',
-    example: 'gulf',
-    required: false,
+  @ApiPropertyOptional({
+    description: 'اللهجة',
+    example: 'خليجي',
+    enum: ['خليجي', 'مصري', 'شامي', 'سعودي', 'أخرى'],
   })
+  @IsOptional()
+  @IsString()
+  @IsIn(['خليجي', 'مصري', 'شامي', 'سعودي', 'أخرى'])
   dialect?: string;
 
-  @IsString()
-  @IsOptional()
-  @ApiProperty({
-    description: 'نغمة الرد (مثل: ودّي، احترافي، ساخر)',
+  @ApiPropertyOptional({
+    description: 'نغمة الرد',
     example: 'ودّي',
-    required: false,
+    enum: ['رسمي', 'ودّي', 'طريف'],
   })
+  @IsOptional()
+  @IsString()
+  @IsIn(['رسمي', 'ودّي', 'طريف'])
   tone?: string;
 
-  @IsString()
-  @IsOptional()
-  @ApiProperty({
-    description: 'قالب مخصص لتوجيه البوت (اختياري)',
-    example: 'ابدأ كل رد بـ: "هلا وغلا!"',
-    required: false,
+  @ApiPropertyOptional({
+    description: 'قالب مخصص',
+    example: 'ابدأ الرد بكلمة أهلاً…',
   })
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
   template?: string;
 }

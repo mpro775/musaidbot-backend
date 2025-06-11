@@ -1,18 +1,26 @@
 // src/config/redis.config.ts
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { ConnectionOptions } from 'bullmq';
+import type { RedisOptions } from 'ioredis';
 
 @Injectable()
 export class RedisConfig {
-  public readonly connection: ConnectionOptions;
+  public readonly connection: RedisOptions;
 
-  constructor(private configService: ConfigService) {
-    const redisPort = this.configService.get<string>('REDIS_PORT');
+  constructor(private config: ConfigService) {
+    const url = this.config.get<string>('REDIS_URL');
+    if (!url) throw new Error('REDIS_URL not defined');
+
+    const parsed = new URL(url);
 
     this.connection = {
-      host: this.configService.get<string>('REDIS_HOST') || 'localhost',
-      port: redisPort ? parseInt(redisPort, 10) : 6379,
+      host: parsed.hostname,
+      port: parseInt(parsed.port, 10),
+      // Username موجود قبل النقطتين في الـ URL
+      username: parsed.username || undefined,
+      password: parsed.password || undefined,
+      // Render يستخدم TLS
+      tls: parsed.protocol === 'rediss:' ? {} : undefined,
     };
   }
 }

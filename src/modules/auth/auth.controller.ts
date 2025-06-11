@@ -8,6 +8,8 @@ import {
   HttpStatus,
   Req,
   BadRequestException,
+  UseInterceptors,
+  UploadedFile,
 } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
@@ -30,6 +32,7 @@ import {
   ApiBadRequestResponse,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
+import { FileInterceptor } from '@nestjs/platform-express';
 
 @ApiTags('المصادقة')
 @Controller('auth')
@@ -61,43 +64,79 @@ export class AuthController {
     return this.authService.login(loginDto);
   }
 
-  @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
   @Put('onboarding')
-  @ApiOperation({ summary: 'استكمال بيانات المتجر بعد التسجيل' })
-  @ApiBody({ type: OnboardingDto })
-  @ApiOkResponse({
-    description: 'تم تحديث بيانات المتجر وإتمام الـ onboarding',
+  @ApiBody({
+    description: 'جميع بيانات التهيئة مع شعار المتجر كـ multipart/form-data',
+    schema: {
+      type: 'object',
+      properties: {
+        logo: { type: 'string', format: 'binary' },
+        name: { type: 'string' },
+        businessType: { type: 'string' },
+        businessDescription: { type: 'string' },
+        phone: { type: 'string' },
+        whatsappNumber: { type: 'string' },
+        webhookUrl: { type: 'string' },
+        telegramToken: { type: 'string' },
+        telegramChatId: { type: 'string' },
+        preferredDialect: { type: 'string' },
+        tone: { type: 'string' },
+        template: { type: 'string' },
+      },
+    },
   })
-  @ApiUnauthorizedResponse({ description: 'توكن غير صالح' })
+  @ApiOkResponse({ description: 'تم إتمام التهيئة بنجاح' })
+  @ApiUnauthorizedResponse({ description: 'توكن JWT غير صالح' })
+  @UseInterceptors(FileInterceptor('logo'))
   async completeOnboarding(
     @Req() { user }: RequestWithUser,
+    @UploadedFile() logo: Express.Multer.File,
     @Body() dto: OnboardingDto,
   ) {
-    if (!user.merchantId) {
-      throw new BadRequestException('merchantId missing from token');
-    }
+    // تأكد من وجود الـ IDs
+    if (!user.merchantId) throw new BadRequestException('merchantId missing');
+    if (!user.userId) throw new BadRequestException('userId missing');
 
-    // 1. تحديث بيانات التاجر
-    await this.merchantService.update(
-      user.merchantId, // الآن من النوع string
-      {
-        name: dto.name, // هنا
-        logoUrl: dto.logoUrl,
-        phone: dto.phone,
-        whatsappNumber: dto.whatsappNumber,
+    // جهز جسم التحديث
+    const updateData: Record<string, any> = {
+      name: dto.name,
+      businessType: dto.businessType,
+      businessDescription: dto.businessDescription,
+      phone: dto.phone,
+      apiToken: dto.apiToken,
+      whatsappNumber: dto.whatsappNumber,
+      webhookUrl: dto.webhookUrl, // يجب أن يكون موجوداً في الـ schema
+      channelConfig: {
+        telegram: {
+          chatId: dto.telegramChatId, // مفتاح chatId كما في الـ schema
+          token: dto.telegramToken, // مفتاح token
+        },
+        whatsapp: {
+          phone: dto.whatsappNumber, // مفتاح phone
+        },
       },
-    );
+      promptConfig: {
+        dialect: dto.preferredDialect,
+        tone: dto.tone,
+        template: dto.template,
+      },
+    };
 
-    // 2. تأكد من وجود user.id أيضاً
-    if (!user.id) {
-      throw new BadRequestException('userId missing from token');
+    // إذا جاء ملف شعار، احفظه وأضف الـ URL
+    if (logo) {
+      // مثال بسيط: نخزن الملف محلياً في /uploads ونبني مسار URL
+      const logoUrl = `/uploads/${logo.filename}`;
+      updateData.logoUrl = logoUrl;
     }
 
-    // 3. تعيين firstLogin = false
-    await this.userService.setFirstLoginFalse(user.id);
+    // حدّث بيانات التاجر دفعة واحدة
+    await this.merchantService.update(user.merchantId, updateData);
 
-    // 4. إعادة بيانات المستخدم المحدثة
-    return this.userService.findOne(user.id);
+    // كسر حالة firstLogin
+    await this.userService.setFirstLoginFalse(user.userId);
+
+    return { message: 'Onboarding completed' };
   }
 }

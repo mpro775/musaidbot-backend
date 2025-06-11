@@ -1,7 +1,9 @@
 // src/scraper/scraper.service.ts
+
 import {
   Injectable,
   Logger,
+  BadRequestException,
   InternalServerErrorException,
 } from '@nestjs/common';
 import { chromium, Page } from 'playwright';
@@ -10,10 +12,24 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { InjectQueue } from '@nestjs/bull';
 import { Queue } from 'bullmq';
 
+type MinimalResult = { price: number; isAvailable: boolean };
+type FullResult = {
+  platform: string;
+  name: string;
+  price: number;
+  isAvailable: boolean;
+  images: string[];
+  description: string;
+  category: string;
+  lowQuantity: string;
+  specsBlock: string[];
+};
+
 @Injectable()
 export class ScraperService {
   private readonly logger = new Logger(ScraperService.name);
-  constructor(@InjectQueue('scraper') private readonly scraperQueue: Queue) {}
+
+  constructor(@InjectQueue('scrape') private readonly scraperQueue: Queue) {}
   @Cron(CronExpression.EVERY_10_MINUTES)
   async scheduleMinimalScrape() {
     this.logger.debug('Enqueue minimal scrape');
@@ -25,131 +41,151 @@ export class ScraperService {
     this.logger.debug('Enqueue weekly full scrape');
     await this.scraperQueue.add('scrape', { mode: 'full' });
   }
-  /** يحاول عدة selectors حتى يجد قيمة نصية */
+
   private async trySelectors(page: Page, selectors: string[]): Promise<string> {
-    for (const selector of selectors) {
+    for (const sel of selectors) {
       try {
         await page.waitForFunction(
           (s) => !!document.querySelector(s)?.textContent?.trim(),
-          selector,
-          { timeout: 5000 },
+          sel,
+          { timeout: 5_000 },
         );
-        const text = await page.$eval(
-          selector,
-          (el) => el.textContent?.trim() ?? '',
-        );
-        if (text) return text;
+        const txt = (await page.textContent(sel))?.trim() ?? '';
+        if (txt) return txt;
       } catch {
-        /* جرب selector آخر */
+        // تجاهل الخطأ وجرب selector آخر
       }
     }
     return '';
   }
 
-  /** يحاول عدة selectors لجمع مصفوفة صور */
   private async tryImageSelectors(
     page: Page,
     selectors: string[],
   ): Promise<string[]> {
-    for (const selector of selectors) {
+    for (const sel of selectors) {
       try {
-        await page.waitForSelector(selector, { timeout: 5000 });
-        const imgs = await page.$$eval(selector, (els) =>
+        await page.waitForSelector(sel, { timeout: 5_000 });
+        const imgs = await page.$$eval(sel, (els) =>
           (els as HTMLImageElement[])
             .map((img) => img.src)
-            .filter((src) => !src.includes('placeholder')),
+            .filter((src) => src && !src.includes('placeholder')),
         );
         if (imgs.length) return imgs;
       } catch {
-        /* جرب selector آخر */
+        // تجاهل الخطأ
       }
     }
     return [];
   }
 
-  /**
-   * @param url رابط المنتج
-   * @param options.mode 'full' → كل الحقول, 'minimal' → السعر والتوفر فقط
-   */
   async scrapeProduct(
-    url: string,
+    rawUrl: string,
     options: { mode: 'full' | 'minimal' } = { mode: 'full' },
-  ): Promise<
-    | { price: number; isAvailable: boolean }
-    | {
-        platform: string;
-        name: string;
-        price: number;
-        isAvailable: boolean;
-        images: string[];
-        description: string;
-        category: string;
-        lowQuantity: string;
-        specsBlock: string[];
-      }
-  > {
+  ): Promise<MinimalResult | FullResult> {
+    // 1) تحقق من صحّة الرابط
+    let url: URL;
+    try {
+      url = new URL(rawUrl);
+    } catch {
+      throw new BadRequestException('Invalid URL');
+    }
+
     let browser;
     try {
       browser = await chromium.launch({ headless: true });
-      const page: Page = await browser.newPage();
-      await page.goto(url, { waitUntil: 'networkidle', timeout: 60000 });
+      const page = await browser.newPage();
 
-      // ---------- الوضع minimal (سعر وتوفر فقط) ----------
+      // 2) اذهب إلى الصفحة
+      await page.goto(url.toString(), {
+        waitUntil: 'networkidle',
+        timeout: 60_000,
+      });
+
+      // 3) الوضع minimal
       if (options.mode === 'minimal') {
-        const priceRaw = await this.trySelectors(page, zidSelectors.price);
-        const price = parseFloat(priceRaw.replace(/[^\d.]/g, '')) || 0;
+        const priceTxt = await this.trySelectors(page, zidSelectors.price);
+        const price = parseFloat(priceTxt.replace(/[^\d.]/g, '')) || 0;
 
-        const lowQuantity = await this.trySelectors(
-          page,
-          zidSelectors.lowQuantity,
-        );
-        // إذا وجدت كلمة "نفد" نعتبره غير متوفر
-        const isAvailable = !/نفد/i.test(lowQuantity);
+        const lowQty = await this.trySelectors(page, zidSelectors.lowQuantity);
+        const isAvailable = !/نفد/i.test(lowQty);
 
-        await browser.close();
         return { price, isAvailable };
       }
 
-      // ---------- الوضع full (كل المعلومات) ----------
+      // 4) الوضع full — استخلص كل حقل بأمان
       const platform = 'zid';
 
-      // فئة المنتج من ميتا
-      const category =
-        (await page.getAttribute(zidSelectors.category[0], 'content')) || '';
+      // فئة
+      let category = '';
+      try {
+        category =
+          (await page.getAttribute(zidSelectors.category[0], 'content')) ?? '';
+      } catch (err) {
+        // no-op: بعض المواقع قد لا يكون لها selector المناسب
+        this.logger.debug(`selector failed: ${err.message}`);
+      }
 
       // الاسم والإصدار
-      const name = await this.trySelectors(page, zidSelectors.name);
-      const variant = await this.trySelectors(page, zidSelectors.variant);
+      let name = '';
+      let variant = '';
+      try {
+        name = await this.trySelectors(page, zidSelectors.name);
+        variant = await this.trySelectors(page, zidSelectors.variant);
+      } catch (err) {
+        // no-op: بعض المواقع قد لا يكون لها selector المناسب
+        this.logger.debug(`selector failed: ${err.message}`);
+      }
       const fullName = variant ? `${name} – ${variant}` : name;
 
       // السعر
-      const priceRaw = await this.trySelectors(page, zidSelectors.price);
-      const price = parseFloat(priceRaw.replace(/[^\d.]/g, '')) || 0;
-
+      let price = 0;
+      try {
+        const priceTxt = await this.trySelectors(page, zidSelectors.price);
+        price = parseFloat(priceTxt.replace(/[^\d.]/g, '')) || 0;
+      } catch (err) {
+        // no-op: بعض المواقع قد لا يكون لها selector المناسب
+        this.logger.debug(`selector failed: ${err.message}`);
+      }
       // الوصف
-      const description =
-        (await this.trySelectors(page, zidSelectors.description)) || '';
-
+      let description = '';
+      try {
+        description = await this.trySelectors(page, zidSelectors.description);
+      } catch (err) {
+        // no-op: بعض المواقع قد لا يكون لها selector المناسب
+        this.logger.debug(`selector failed: ${err.message}`);
+      }
       // الصور
-      const images = await this.tryImageSelectors(page, zidSelectors.images);
+      let images: string[] = [];
+      try {
+        images = await this.tryImageSelectors(page, zidSelectors.images);
+      } catch (err) {
+        // no-op: بعض المواقع قد لا يكون لها selector المناسب
+        this.logger.debug(`selector failed: ${err.message}`);
+      }
+      // التوفر
+      let lowQuantity = '';
+      let isAvailable = true;
+      try {
+        lowQuantity = await this.trySelectors(page, zidSelectors.lowQuantity);
+        isAvailable = !/نفد/i.test(lowQuantity);
+      } catch (err) {
+        this.logger.debug(`selector failed: ${err.message}`);
+      }
 
-      // التوفر (نستخدم lowQuantity لاشتقاق isAvailable أيضاً)
-      const lowQuantity = await this.trySelectors(
-        page,
-        zidSelectors.lowQuantity,
-      );
-      const isAvailable = !/نفد/i.test(lowQuantity);
-
-      // specifications block
-      const specsBlock = await page.$$eval(
-        zidSelectors.specsBlock[0],
-        (spans) =>
-          (spans as HTMLSpanElement[])
-            .map((s) => s.textContent?.trim() || '')
+      // مواصفات
+      let specsBlock: string[] = [];
+      try {
+        specsBlock = await page.$$eval(zidSelectors.specsBlock[0], (els) =>
+          (els as HTMLSpanElement[])
+            .map((s) => s.textContent?.trim() ?? '')
             .filter(Boolean),
-      );
+        );
+      } catch (err) {
+        // no-op: بعض المواقع قد لا يكون لها selector المناسب
+        this.logger.debug(`selector failed: ${err.message}`);
+      }
 
-      await browser.close();
       return {
         platform,
         name: fullName,
@@ -162,9 +198,11 @@ export class ScraperService {
         specsBlock,
       };
     } catch (err) {
-      this.logger.error(`Error scraping ${url}: ${(err as Error).message}`);
-      if (browser) await browser.close();
+      this.logger.error(`Error scraping ${rawUrl}: ${(err as Error).message}`);
+      // إذا فشل التنقل أو حدث خطأ غير متوقع
       throw new InternalServerErrorException('Failed to scrape product');
+    } finally {
+      if (browser) await browser.close();
     }
   }
 }

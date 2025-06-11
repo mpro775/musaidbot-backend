@@ -44,7 +44,9 @@ export class AuthService {
     // 4. إنشاء سجل التاجر الافتراضي (بيانات جزئية ستُكمّل لاحقاً في الـ Onboarding)
     const createdMerchant = await this.merchantModel.create({
       userId: userDoc._id,
-      name: `متجر ${name}`, // اسم مؤقت
+      name: `متجر ${name}`,
+      email: email, // تضيف هذا السطر
+      // phone و whatsappNumber يبقيان اختياريّين في الـ schema
       isActive: true,
       planName: 'free',
       subscriptionExpiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),

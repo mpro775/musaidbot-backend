@@ -172,6 +172,7 @@ export class MerchantsController {
   @ApiBody({ type: UpdateChannelDto })
   @ApiOkResponse()
   @ApiNotFoundResponse()
+  @Post(':id/channel')
   updateChannel(@Param('id') id: string, @Body() dto: UpdateChannelDto) {
     return this.svc.updateChannelConfig(id, dto);
   }
