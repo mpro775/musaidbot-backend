@@ -31,6 +31,7 @@ import {
   ApiForbiddenResponse,
   ApiNotFoundResponse,
 } from '@nestjs/swagger';
+import { Public } from 'src/common/decorators/public.decorator';
 
 @ApiTags('التجار')
 @ApiBearerAuth()
@@ -81,6 +82,7 @@ export class MerchantsController {
     return this.svc.findAll();
   }
 
+  @Public()
   @Get(':id')
   @ApiOperation({ summary: 'جلب بيانات تاجر واحد حسب المعرّف' })
   @ApiParam({ name: 'id', description: 'معرّف التاجر (Mongo ObjectId)' })

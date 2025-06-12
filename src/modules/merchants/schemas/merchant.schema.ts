@@ -58,6 +58,8 @@ export class Merchant {
   @Prop({ required: false })
   apiToken?: string;
 
+  @Prop({ required: false })
+  finalPromptTemplate: string;
   @Prop({
     type: {
       dialect: { type: String, default: 'خليجي' },

@@ -35,6 +35,7 @@ import {
   ApiForbiddenResponse,
   ApiNotFoundResponse,
 } from '@nestjs/swagger';
+import { Public } from 'src/common/decorators/public.decorator';
 
 @ApiTags('المنتجات')
 @ApiBearerAuth()
@@ -110,6 +111,7 @@ export class ProductsController {
     });
   }
 
+  @Public()
   @Get()
   @ApiOperation({ summary: 'جلب جميع المنتجات للتاجر الحالي' })
   @ApiOkResponse({
