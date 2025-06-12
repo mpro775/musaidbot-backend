@@ -48,11 +48,19 @@ export class ProductsService {
   }
 
   async findAllByMerchant(merchantObjectId: Types.ObjectId): Promise<any[]> {
-    return this.productModel
+    const docs = await this.productModel
       .find({ merchantId: merchantObjectId })
       .lean()
       .exec();
+
+    // حول حقول الـ ObjectId إلى strings
+    return docs.map((doc) => ({
+      ...doc,
+      _id: doc._id.toString(),
+      merchantId: doc.merchantId.toString(),
+    }));
   }
+
   // **هنا**: نجد أنّ return type هو ProductDocument
   async findOne(id: string): Promise<ProductDocument> {
     const prod = await this.productModel.findById(id).exec();

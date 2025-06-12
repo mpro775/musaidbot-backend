@@ -156,6 +156,7 @@ export class ProductsController {
 
     return plainToInstance(ProductResponseDto, docs);
   }
+  @Public()
   @Get(':id')
   @ApiParam({ name: 'id', type: 'string', description: 'معرّف المنتج' })
   @ApiOperation({ summary: 'جلب منتج واحد حسب المعرّف' })
