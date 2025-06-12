@@ -1,27 +1,37 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document } from 'mongoose';
 
-export type MessageDocument = Message & Document;
+export type MessageSessionDocument = MessageSession & Document;
 
 @Schema({ timestamps: true })
-export class Message {
+export class MessageSession {
   @Prop({ required: true })
   merchantId: string;
 
   @Prop({ required: true })
-  conversationId: string;
+  sessionId: string; // مثلاً رقم الهاتف أو session hash
 
   @Prop({ required: true })
-  channel: string; // e.g. 'whatsapp', 'telegram', 'webchat', etc.
+  channel: string; // 'whatsapp' | 'telegram' | 'webchat'
 
-  @Prop({ required: true, enum: ['customer', 'bot'] })
-  role: 'customer' | 'bot';
-
-  @Prop({ required: true })
-  text: string;
-
-  @Prop({ type: Object, default: {} })
-  metadata: Record<string, any>;
+  @Prop({
+    type: [
+      {
+        role: { type: String, enum: ['customer', 'bot'], required: true },
+        text: { type: String, required: true },
+        timestamp: { type: Date, required: true },
+        metadata: { type: Object, default: {} },
+      },
+    ],
+    default: [],
+  })
+  messages: {
+    role: 'customer' | 'bot';
+    text: string;
+    timestamp: Date;
+    metadata?: Record<string, any>;
+  }[];
 }
 
-export const MessageSchema = SchemaFactory.createForClass(Message);
+export const MessageSessionSchema =
+  SchemaFactory.createForClass(MessageSession);

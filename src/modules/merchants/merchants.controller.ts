@@ -184,4 +184,13 @@ export class MerchantsController {
   getStatus(@Param('id') id: string) {
     return this.svc.getStatus(id);
   }
+  /**
+   * يفعّل ويب هوك تلجرام لتاجر معيّن
+   * @param id معرّف التاجر
+   */
+  @Post(':id/webhook')
+  async registerTelegramWebhook(@Param('id') id: string) {
+    const result = await this.svc.registerTelegramWebhook(id);
+    return { success: true, ...result };
+  }
 }

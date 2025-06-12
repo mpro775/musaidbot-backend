@@ -1,5 +1,10 @@
 // src/modules/merchants/merchants.service.ts
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  InternalServerErrorException,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 
@@ -7,25 +12,99 @@ import { Merchant, MerchantDocument } from './schemas/merchant.schema';
 import { CreateMerchantDto } from './dto/create-merchant.dto';
 import { UpdateMerchantDto } from './dto/update-merchant.dto';
 import { UpdateChannelDto } from './dto/update-channel.dto';
+import { firstValueFrom } from 'rxjs';
+import { HttpService } from '@nestjs/axios';
 
 @Injectable()
 export class MerchantsService {
   constructor(
     @InjectModel(Merchant.name)
     private readonly merchantModel: Model<MerchantDocument>,
+    private http: HttpService,
   ) {}
 
   // إنشاء تاجر جديد
-  async create(dto: CreateMerchantDto): Promise<MerchantDocument> {
-    const merchant = new this.merchantModel(dto);
-    merchant.finalPromptTemplate = this.buildPromptFromConfig(merchant);
+  async create(createDto: CreateMerchantDto): Promise<MerchantDocument> {
+    // 1) أنشئ التاجر أولاً
+    const created = new this.merchantModel(createDto);
+    await created.save();
 
-    return merchant.save();
+    // 2) لو العميل أعطى توكن تلجرام، جهّز URL الويبهوك
+    const token = createDto.channelConfig?.telegram?.token;
+    if (token) {
+      // ثابت عندك:
+      const N8N_BASE = 'https://abdulsalam-n8n.up.railway.app';
+      const WORKFLOW_ID = '8ae43b54-0ebe-4b1c-8824-bace684c6573';
+
+      const hookUrl = `${N8N_BASE}/webhook/${WORKFLOW_ID}/webhooks/telegram_incoming/${created.id}`;
+
+      try {
+        // 3) سجّل الـ webhook في Telegram API
+        const telegramApi = `https://api.telegram.org/bot${token}/setWebhook`;
+        await firstValueFrom(
+          this.http.post(telegramApi, { params: { url: hookUrl } }),
+        );
+
+        // 4) احفظه في الحقل webhookUrl
+        created.webhookUrl = hookUrl;
+        await created.save();
+      } catch (err) {
+        // لو فشل تسجيل الويبهوك، إحذف التاجر أو أرجع خطأ مناسب
+        throw new InternalServerErrorException(
+          `فشل إنشاء webhook في تلجرام: ${err.message}`,
+        );
+      }
+    }
+
+    return created;
   }
 
   // جلب كل التجار
   async findAll(): Promise<MerchantDocument[]> {
     return this.merchantModel.find().exec();
+  }
+
+  async registerTelegramWebhook(
+    merchantId: string,
+  ): Promise<{ hookUrl: string; telegramResponse: any }> {
+    const merchant = await this.merchantModel.findById(merchantId).exec();
+    if (!merchant) {
+      throw new NotFoundException(`التاجر بالـ ID ${merchantId} غير موجود`);
+    }
+
+    // تأكد من وجود توكن تلجرام مُخزّن
+    const token = merchant.channelConfig?.telegram?.token;
+    if (!token) {
+      throw new BadRequestException(`لا يوجد Telegram token لهذا التاجر`);
+    }
+
+    // بناء URL للويب هوك على n8n
+    const N8N_BASE =
+      process.env.N8N_BASE_URL || 'https://abdulsalam-n8n.up.railway.app';
+    const WORKFLOW_ID =
+      process.env.N8N_WORKFLOW_ID || '8ae43b54-0ebe-4b1c-8824-bace684c6573';
+    const hookUrl = `${N8N_BASE}/webhook/${WORKFLOW_ID}/webhooks/telegram_incoming/${merchant.id}`;
+
+    try {
+      // إرسال طلب إلى Telegram API
+      const telegramApi = `https://api.telegram.org/bot${token}/setWebhook`;
+      const resp = await firstValueFrom(
+        this.http.post(telegramApi, null, { params: { url: hookUrl } }),
+      );
+
+      // حفظ الـ webhookUrl في قاعدة البيانات
+      merchant.webhookUrl = hookUrl;
+      await merchant.save();
+
+      return {
+        hookUrl,
+        telegramResponse: resp.data,
+      };
+    } catch (err) {
+      throw new InternalServerErrorException(
+        `فشل تسجيل الويب هوك في تلجرام: ${err.message}`,
+      );
+    }
   }
 
   // جلب تاجر واحد

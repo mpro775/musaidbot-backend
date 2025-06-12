@@ -3,13 +3,11 @@ import { Injectable, BadRequestException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { Webhook, WebhookDocument } from './schemas/webhook.schema';
-import { ConversationsService } from '../conversations/conversations.service';
 import { MessageService } from '../messaging/message.service';
 
 @Injectable()
 export class WebhooksService {
   constructor(
-    private readonly conversationsService: ConversationsService,
     private readonly messageService: MessageService,
     @InjectModel(Webhook.name)
     private readonly webhookModel: Model<WebhookDocument>,
@@ -17,9 +15,12 @@ export class WebhooksService {
 
   async handleEvent(eventType: string, payload: any) {
     const { merchantId, from, messageText, metadata } = payload;
+
     if (!merchantId || !from || !messageText) {
       throw new BadRequestException(`Invalid payload for ${eventType}`);
     }
+
+    const channel = eventType.replace('_incoming', '');
 
     // 1. تخزين الحدث الخام
     await this.webhookModel.create({
@@ -28,24 +29,21 @@ export class WebhooksService {
       receivedAt: new Date(),
     });
 
-    // 2. ضمان وجود المحادثة أو إنشاؤها
-    const convoDoc = await this.conversationsService.ensureConversation(
+    // 2. إنشاء أو تحديث الجلسة وتخزين الرسالة
+    await this.messageService.createOrAppend({
       merchantId,
-      from,
-    );
-    const conversationId = convoDoc._id.toString();
-
-    // 3. حفظ رسالة العميل
-    await this.messageService.create({
-      merchantId,
-      conversationId,
-      channel: eventType.replace('_incoming', ''), // مثلاً 'whatsapp'
-      role: 'customer',
-      text: messageText,
-      metadata: metadata || {},
+      sessionId: from, // الهاتف كمفتاح الجلسة
+      channel,
+      messages: [
+        {
+          role: 'customer',
+          text: messageText,
+          metadata: metadata || {},
+        },
+      ],
     });
 
-    // 4. نعيد conversationId فقط لبقية خطوات الـ workflow في n8n
-    return { conversationId };
+    // 3. إعادة sessionId لاستخدامه في n8n (بدلًا من conversationId)
+    return { sessionId: from };
   }
 }

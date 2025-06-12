@@ -1,70 +1,99 @@
-// src/modules/messaging/message.service.ts
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
-import { Message, MessageDocument } from './schemas/message.schema';
+import {
+  MessageSession,
+  MessageSessionDocument,
+} from './schemas/message.schema';
 import { CreateMessageDto } from './dto/create-message.dto';
 import { UpdateMessageDto } from './dto/update-message.dto';
 
 @Injectable()
 export class MessageService {
   constructor(
-    @InjectModel(Message.name)
-    private readonly messageModel: Model<MessageDocument>,
+    @InjectModel(MessageSession.name)
+    private readonly messageModel: Model<MessageSessionDocument>,
   ) {}
 
-  async create(dto: CreateMessageDto): Promise<Message> {
-    const created = new this.messageModel(dto);
-    return created.save();
+  // إنشاء أو تحديث جلسة برسائل جديدة
+  async createOrAppend(dto: CreateMessageDto): Promise<MessageSession> {
+    const existing = await this.messageModel.findOne({
+      merchantId: dto.merchantId,
+      sessionId: dto.sessionId,
+    });
+
+    const timestampedMessages = dto.messages.map((m) => ({
+      ...m,
+      timestamp: new Date(),
+    }));
+
+    if (existing) {
+      existing.messages.push(...timestampedMessages);
+      existing.markModified('messages');
+      return existing.save();
+    } else {
+      return this.messageModel.create({
+        merchantId: dto.merchantId,
+        sessionId: dto.sessionId,
+        channel: dto.channel,
+        messages: timestampedMessages,
+      });
+    }
   }
 
-  async findByConversation(conversationId: string): Promise<Message[]> {
-    return this.messageModel.find({ conversationId }).exec();
+  // جلب الجلسة كاملة حسب sessionId
+  async findBySession(sessionId: string): Promise<MessageSession | null> {
+    return this.messageModel.findOne({ sessionId }).exec();
   }
-  // في MessageService
-  async findById(id: string): Promise<MessageDocument> {
+
+  // جلب جلسة واحدة حسب المعرف
+  async findById(id: string): Promise<MessageSessionDocument> {
     const doc = await this.messageModel.findById(id).exec();
     if (!doc) {
-      throw new NotFoundException(`Message with id ${id} not found`);
+      throw new NotFoundException(`Message session with id ${id} not found`);
     }
     return doc;
   }
-  async update(id: string, dto: UpdateMessageDto): Promise<MessageDocument> {
+
+  // تحديث بيانات الجلسة أو أحد الحقول (مثل tags أو notes)
+  async update(
+    id: string,
+    dto: UpdateMessageDto,
+  ): Promise<MessageSessionDocument> {
     const updated = await this.messageModel
       .findByIdAndUpdate(id, dto, { new: true })
       .exec();
     if (!updated) {
-      throw new NotFoundException(`Message with id ${id} not found`);
+      throw new NotFoundException(`Message session with id ${id} not found`);
     }
     return updated;
   }
 
+  // حذف جلسة كاملة
   async remove(id: string): Promise<{ deleted: boolean }> {
     const res = await this.messageModel.deleteOne({ _id: id }).exec();
     return { deleted: res.deletedCount > 0 };
   }
 
+  // جلب عدة جلسات مع فلترة حسب التاجر أو القناة
   async findAll(filters: {
     merchantId?: string;
     channel?: string;
-    role?: 'customer' | 'bot';
     limit: number;
     page: number;
-  }): Promise<{ data: Message[]; total: number }> {
+  }): Promise<{ data: MessageSession[]; total: number }> {
     const query: any = {};
     if (filters.merchantId) query.merchantId = filters.merchantId;
     if (filters.channel) query.channel = filters.channel;
-    if (filters.role) query.role = filters.role;
 
     const total = await this.messageModel.countDocuments(query);
     const data = await this.messageModel
       .find(query)
       .skip((filters.page - 1) * filters.limit)
       .limit(filters.limit)
+      .sort({ updatedAt: -1 })
       .exec();
 
     return { data, total };
   }
-
-  // Add other helpers as needed
 }

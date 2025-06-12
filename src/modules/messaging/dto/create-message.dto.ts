@@ -1,44 +1,68 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsString, IsEnum, IsOptional, IsObject } from 'class-validator';
+import {
+  IsArray,
+  IsEnum,
+  IsObject,
+  IsOptional,
+  IsString,
+  ValidateNested,
+  ArrayMinSize,
+} from 'class-validator';
+import { Type } from 'class-transformer';
 
-export class CreateMessageDto {
-  @ApiProperty({ description: 'معرّف المحادثة', example: '6651abc...' })
-  @IsString()
-  conversationId: string;
-
-  @ApiProperty({ description: 'معرّف التاجر', example: '6631ee7f...' })
-  @IsString()
-  merchantId: string;
-
+class MessageContentDto {
   @ApiProperty({
     description: 'دور المرسل',
-    example: 'bot',
-    enum: ['bot', 'customer'],
+    enum: ['customer', 'bot'],
+    example: 'customer',
   })
-  @IsEnum(['bot', 'customer'])
-  role: 'bot' | 'customer';
+  @IsEnum(['customer', 'bot'])
+  role: 'customer' | 'bot';
 
   @ApiProperty({
     description: 'نص الرسالة',
-    example: 'مرحبًا بك! كيف نقدر نخدمك؟',
+    example: 'مرحبًا! أبغى شاحن سامسونج.',
   })
   @IsString()
   text: string;
 
   @ApiProperty({
-    description: 'القناة المستخدمة',
-    example: 'telegram',
-    enum: ['whatsapp', 'telegram', 'webchat'],
-  })
-  @IsEnum(['whatsapp', 'telegram', 'webchat'])
-  channel: string;
-
-  @ApiProperty({
-    description: 'بيانات إضافية (اختياري)',
+    description: 'بيانات إضافية للرسالة (اختياري)',
     type: Object,
     required: false,
   })
   @IsOptional()
   @IsObject()
   metadata?: Record<string, any>;
+}
+
+export class CreateMessageDto {
+  @ApiProperty({ description: 'معرّف التاجر', example: '6631ee7f...' })
+  @IsString()
+  merchantId: string;
+
+  @ApiProperty({
+    description: 'معرف الجلسة (رقم جوال أو sessionId موحد)',
+    example: '966501234567',
+  })
+  @IsString()
+  sessionId: string;
+
+  @ApiProperty({
+    description: 'القناة المستخدمة',
+    enum: ['whatsapp', 'telegram', 'webchat'],
+    example: 'whatsapp',
+  })
+  @IsEnum(['whatsapp', 'telegram', 'webchat'])
+  channel: string;
+
+  @ApiProperty({
+    description: 'مصفوفة الرسائل المُراد إضافتها إلى الجلسة',
+    type: [MessageContentDto],
+  })
+  @IsArray()
+  @ArrayMinSize(1)
+  @ValidateNested({ each: true })
+  @Type(() => MessageContentDto)
+  messages: MessageContentDto[];
 }

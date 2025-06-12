@@ -1,6 +1,7 @@
 // src/modules/merchants/schemas/merchant.schema.ts
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Types } from 'mongoose';
+import { buildPromptFromMerchant } from '../utils/prompt-builder';
 
 export type MerchantDocument = Merchant & Document;
 
@@ -20,7 +21,8 @@ export class Merchant {
 
   @Prop({ required: false })
   webhookUrl?: string; // ← أضفناه لكي تُخزّن قيمة الـ webhookUrl
-
+  @Prop({ required: false })
+  storeurl?: string;
   @Prop({ required: false })
   logoUrl?: string;
 
@@ -91,3 +93,14 @@ export class Merchant {
 }
 
 export const MerchantSchema = SchemaFactory.createForClass(Merchant);
+MerchantSchema.pre<MerchantDocument>('save', function (next) {
+  // إذا تغيرت الـ name أو الـ promptConfig أو الحقل جديد
+  if (
+    this.isNew ||
+    this.isModified('name') ||
+    this.isModified('promptConfig')
+  ) {
+    this.finalPromptTemplate = buildPromptFromMerchant(this);
+  }
+  next();
+});

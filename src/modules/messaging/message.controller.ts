@@ -1,4 +1,3 @@
-// src/modules/messaging/message.controller.ts
 import {
   Controller,
   Post,
@@ -28,134 +27,96 @@ export class MessageController {
   constructor(private readonly messageService: MessageService) {}
 
   @Post()
-  @ApiOperation({ summary: 'إنشاء رسالة جديدة داخل محادثة' })
+  @ApiOperation({ summary: 'إنشاء جلسة جديدة أو إضافة رسائل لجلسة موجودة' })
   @ApiBody({ type: CreateMessageDto })
   @ApiCreatedResponse({
-    description: 'تم إنشاء الرسالة بنجاح',
+    description: 'تم إنشاء أو تعديل الجلسة بنجاح',
     schema: {
       example: {
         _id: '6651abc...',
-        conversationId: '664...',
         merchantId: '663...',
-        role: 'bot',
-        text: 'مرحبًا بك! كيف يمكنني مساعدتك؟',
-        channel: 'telegram',
-        metadata: {},
-        createdAt: '2025-06-10T08:30:00Z',
+        sessionId: '9665xxxxxxx',
+        channel: 'whatsapp',
+        messages: [
+          {
+            role: 'customer',
+            text: 'أبغى شاحن آيفون',
+            timestamp: '2025-06-12T10:00:00Z',
+            metadata: {},
+          },
+        ],
+        createdAt: '2025-06-12T10:00:00Z',
+        updatedAt: '2025-06-12T10:01:00Z',
       },
     },
   })
   @ApiBadRequestResponse({ description: 'البيانات غير صحيحة أو ناقصة' })
-  create(@Body() dto: CreateMessageDto) {
-    return this.messageService.create(dto);
+  createOrAppend(@Body() dto: CreateMessageDto) {
+    return this.messageService.createOrAppend(dto);
   }
 
-  @Get('conversation/:conversationId')
-  @ApiOperation({ summary: 'جلب كل الرسائل المرتبطة بمحادثة معينة' })
-  @ApiParam({ name: 'conversationId', description: 'معرّف المحادثة' })
+  @Get('session/:sessionId')
+  @ApiOperation({
+    summary: 'جلب محادثة كاملة حسب sessionId (رقم الهاتف غالبًا)',
+  })
+  @ApiParam({ name: 'sessionId', description: 'معرف الجلسة' })
   @ApiOkResponse({
-    description: 'قائمة الرسائل',
-    schema: {
-      example: [
-        {
-          _id: '1',
-          role: 'customer',
-          text: 'السلام عليكم',
-          channel: 'whatsapp',
-          createdAt: '2025-06-10T08:30:00Z',
-        },
-        {
-          _id: '2',
-          role: 'bot',
-          text: 'وعليكم السلام! كيف أقدر أساعدك؟',
-          channel: 'whatsapp',
-          createdAt: '2025-06-10T08:31:00Z',
-        },
-      ],
-    },
+    description: 'محادثة واحدة بجميع الرسائل',
   })
-  @ApiNotFoundResponse({
-    description: 'المحادثة غير موجودة أو لا تحتوي على رسائل',
-  })
-  findByConversation(@Param('conversationId') conversationId: string) {
-    return this.messageService.findByConversation(conversationId);
+  findBySession(@Param('sessionId') sessionId: string) {
+    return this.messageService.findBySession(sessionId);
   }
 
-  // في MessageController
   @Get(':id')
-  @ApiOperation({ summary: 'جلب رسالة مفردة حسب المعرّف' })
-  @ApiParam({ name: 'id', description: 'معرّف الرسالة' })
+  @ApiOperation({ summary: 'جلب الجلسة حسب _id' })
+  @ApiParam({ name: 'id', description: 'معرف الوثيقة في Mongo' })
   @ApiOkResponse()
-  @ApiNotFoundResponse({ description: 'الرسالة غير موجودة' })
+  @ApiNotFoundResponse({ description: 'الجلسة غير موجودة' })
   findOne(@Param('id') id: string) {
     return this.messageService.findById(id);
   }
 
   @Patch(':id')
-  @ApiOperation({ summary: 'تعديل نص أو بيانات رسالة موجودة' })
-  @ApiParam({ name: 'id', description: 'معرّف الرسالة' })
+  @ApiOperation({ summary: 'تحديث بيانات الجلسة (مثل tags أو ملاحظات)' })
+  @ApiParam({ name: 'id', description: 'معرف الوثيقة في Mongo' })
   @ApiBody({ type: UpdateMessageDto })
-  @ApiOkResponse({ description: 'تم تعديل الرسالة' })
-  @ApiNotFoundResponse({ description: 'الرسالة غير موجودة' })
+  @ApiOkResponse({ description: 'تم التحديث' })
+  @ApiNotFoundResponse({ description: 'الجلسة غير موجودة' })
   async update(@Param('id') id: string, @Body() dto: UpdateMessageDto) {
     return this.messageService.update(id, dto);
   }
 
   @Delete(':id')
-  @ApiOperation({ summary: 'حذف رسالة من قاعدة البيانات' })
-  @ApiParam({ name: 'id', description: 'معرّف الرسالة' })
+  @ApiOperation({ summary: 'حذف جلسة كاملة من قاعدة البيانات' })
+  @ApiParam({ name: 'id', description: 'معرف الوثيقة في Mongo' })
   @ApiOkResponse({ description: 'تم الحذف بنجاح' })
-  @ApiNotFoundResponse({ description: 'الرسالة غير موجودة' })
+  @ApiNotFoundResponse({ description: 'الجلسة غير موجودة' })
   async remove(@Param('id') id: string) {
     return this.messageService.remove(id);
   }
 
   @Get()
-  @ApiOperation({ summary: 'جلب الرسائل مع فلترة حسب التاجر، القناة، الدور' })
+  @ApiOperation({ summary: 'جلب كل الجلسات مع خيارات فلترة' })
   @ApiOkResponse({
-    description: 'نتائج الرسائل مع عدد الإجمالي',
-    schema: {
-      example: {
-        total: 2,
-        data: [
-          {
-            _id: '1',
-            merchantId: '663...',
-            text: 'مرحبًا!',
-            role: 'bot',
-            channel: 'telegram',
-          },
-          {
-            _id: '2',
-            merchantId: '663...',
-            text: 'هل لديكم شحن دولي؟',
-            role: 'customer',
-            channel: 'telegram',
-          },
-        ],
-      },
-    },
+    description: 'نتائج الجلسات مع عدد الإجمالي',
   })
   @ApiQuery({ name: 'merchantId', required: false })
   @ApiQuery({
     name: 'channel',
     required: false,
-    enum: ['whatsapp', 'telegram'],
+    enum: ['whatsapp', 'telegram', 'webchat'],
   })
-  @ApiQuery({ name: 'role', required: false, enum: ['customer', 'bot'] })
   @ApiQuery({ name: 'limit', required: false, type: Number })
   @ApiQuery({ name: 'page', required: false, type: Number })
   async findAll(
     @Query('merchantId') merchantId?: string,
     @Query('channel') channel?: string,
-    @Query('role') role?: 'customer' | 'bot',
     @Query('limit') limit = '20',
     @Query('page') page = '1',
   ) {
     return this.messageService.findAll({
       merchantId,
       channel,
-      role,
       limit: parseInt(limit, 10),
       page: parseInt(page, 10),
     });
