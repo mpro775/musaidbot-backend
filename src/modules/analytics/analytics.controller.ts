@@ -1,49 +1,76 @@
-import { Controller, Get, Param, UseGuards } from '@nestjs/common';
-import { JwtAuthGuard } from 'src/common/guards/jwt-auth.guard';
-import {
-  ApiTags,
-  ApiBearerAuth,
-  ApiOperation,
-  ApiParam,
-  ApiOkResponse,
-  ApiUnauthorizedResponse,
-  ApiNotFoundResponse,
-} from '@nestjs/swagger';
-import { AnalyticsService, AnalyticsOverview } from './analytics.service';
+import { Controller, Get, Query } from '@nestjs/common';
+import { AnalyticsService } from './analytics.service';
 
-@ApiTags('التحليلات')
-@ApiBearerAuth()
-@UseGuards(JwtAuthGuard)
 @Controller('analytics')
 export class AnalyticsController {
-  constructor(private readonly svc: AnalyticsService) {}
+  constructor(private readonly analyticsService: AnalyticsService) {}
 
-  @Get('merchant/:id/overview')
-  @ApiOperation({ summary: 'الحصول على نظرة عامة بالتحليلات للتاجر' })
-  @ApiParam({ name: 'id', type: 'string', description: 'معرّف التاجر' })
-  @ApiOkResponse({
-    description: 'تم إرجاع نظرة عامة عن التحليلات بنجاح',
-    schema: {
-      example: {
-        totalConversations: 42,
-        messagesByChannel: { whatsapp: 30, telegram: 12 },
-      },
-    },
-  })
-  @ApiUnauthorizedResponse({
-    description: 'غير مصرح (توكن JWT غير صالح أو مفقود)',
-  })
-  @ApiNotFoundResponse({
-    description: 'التاجر غير موجود أو لا توجد بيانات للتحليلات',
-  })
-  async overview(@Param('id') id: string): Promise<AnalyticsOverview> {
-    return this.svc.overview(id);
+  @Get('session-count')
+  async getSessionCount(
+    @Query('merchantId') merchantId: string,
+    @Query('from') from: string,
+    @Query('to') to: string,
+  ) {
+    const fromDate = new Date(from);
+    const toDate = new Date(to);
+
+    const count = await this.analyticsService.countSessions(
+      merchantId,
+      fromDate,
+      toDate,
+    );
+
+    return { merchantId, count, from: fromDate, to: toDate };
+  }
+  @Get('message-role-stats')
+  async getMessageRoleStats(@Query('merchantId') merchantId: string) {
+    const stats = await this.analyticsService.countMessagesByRole(merchantId);
+    return stats;
+  }
+  @Get('top-questions')
+  async getTopQuestions(
+    @Query('merchantId') merchantId: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.analyticsService.topCustomerMessages(
+      merchantId,
+      Number(limit) || 10,
+    );
+  }
+  @Get('daily-sessions')
+  async getDailySessions(
+    @Query('merchantId') merchantId: string,
+    @Query('from') from: string,
+    @Query('to') to: string,
+  ) {
+    return this.analyticsService.sessionsPerDay(
+      merchantId,
+      new Date(from),
+      new Date(to),
+    );
+  }
+  @Get('channel-usage')
+  async getChannelUsage(@Query('merchantId') merchantId: string) {
+    return this.analyticsService.channelDistribution(merchantId);
+  }
+  @Get('top-products-requested')
+  async getTopRequestedProducts(
+    @Query('merchantId') merchantId: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.analyticsService.topRequestedProducts(
+      merchantId,
+      Number(limit) || 10,
+    );
+  }
+  @Get('top-keywords')
+  async getTopKeywords(
+    @Query('merchantId') merchantId: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.analyticsService.topCustomerKeywords(
+      merchantId,
+      Number(limit) || 20,
+    );
   }
 }
-
-/**
- * النواقص:
- * - يمكن إضافة @ApiForbiddenResponse إذا كان هنالك حق لصلاحيات معينة.
- * - توثيق الحقول التفصيلية لكائن AnalyticsOverview بشكل منفصل في DTO.
- * - إضافة أمثلة أكثر تنوعاً في schema.example لتعكس الحلات المختلفة (عند عدم وجود محادثات مثلاً).
- */

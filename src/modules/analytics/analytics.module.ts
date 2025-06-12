@@ -1,18 +1,16 @@
-// src/modules/analytics/analytics.module.ts
 import { Module } from '@nestjs/common';
-import { MongooseModule } from '@nestjs/mongoose';
 import { AnalyticsService } from './analytics.service';
 import { AnalyticsController } from './analytics.controller';
+import { MongooseModule } from '@nestjs/mongoose';
 import {
-  Conversation,
-  ConversationSchema,
-} from '../conversations/schemas/conversation.schema';
+  MessageSession,
+  MessageSessionSchema,
+} from '../messaging/schemas/message.schema';
 
 @Module({
   imports: [
-    // هنا نُسجّل الـ model الخاص بالمحادثات
     MongooseModule.forFeature([
-      { name: Conversation.name, schema: ConversationSchema },
+      { name: MessageSession.name, schema: MessageSessionSchema },
     ]),
   ],
   providers: [AnalyticsService],
