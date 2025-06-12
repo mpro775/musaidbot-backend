@@ -23,34 +23,40 @@ import {
 export class WebhooksController {
   constructor(private readonly webhooksService: WebhooksService) {}
 
-  @Post(':eventType')
+  @Post(':eventType/:merchantId')
   @ApiOperation({
     summary: 'Handle generic webhook events (e.g., incoming messages).',
   })
   @ApiParam({
     name: 'eventType',
     type: String,
-    description:
-      'نوع الحدث (مثل whatsapp_incoming, telegram_incoming, product.updated).',
+    description: 'نوع الحدث (مثلاً telegram_incoming)',
+  })
+  @ApiParam({
+    name: 'merchantId',
+    type: String,
+    description: 'معرف التاجر في قاعدة البيانات',
   })
   @ApiBody({
     type: HandleWebhookDto,
     description: 'Payload for the webhook event.',
   })
-  @ApiCreatedResponse({ description: 'تم معالجة الحدث بنجاح وارجاع نص الرد.' })
-  @ApiBadRequestResponse({ description: 'الحمولة غير صحيحة أو ناقصة.' })
+  @ApiCreatedResponse({
+    description: 'تمت المعالجة بنجاح وارجاع conversationId.',
+  })
+  @ApiBadRequestResponse({ description: 'الحمولة ناقصة أو غير صحيحة.' })
   @HttpCode(HttpStatus.CREATED)
   async handleWebhook(
     @Param('eventType') eventType: string,
+    @Param('merchantId') merchantId: string,
     @Body() dto: HandleWebhookDto,
   ) {
-    const { merchantId, from, messageText, metadata } = dto.payload || {};
-    if (!merchantId || !from || !messageText) {
-      throw new BadRequestException(
-        'الحقول merchantId وfrom وmessageText مطلوبة.',
-      );
+    const { from, messageText, metadata } = dto.payload || {};
+    if (!from || !messageText) {
+      throw new BadRequestException('الحقول from وmessageText مطلوبة.');
     }
 
+    // نمرّر merchantId من العنوان بدل الاعتماد على payload
     return this.webhooksService.handleEvent(eventType, {
       merchantId,
       from,

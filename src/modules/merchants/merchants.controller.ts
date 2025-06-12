@@ -112,25 +112,22 @@ export class MerchantsController {
   findOne(@Param('id') id: string) {
     return this.svc.findOne(id);
   }
-
   @Put(':id')
   @ApiOperation({ summary: 'تحديث بيانات التاجر بالكامل' })
-  @ApiParam({ name: 'id', description: 'معرّف التاجر' })
-  @ApiBody({ type: UpdateMerchantDto })
-  @ApiOkResponse({ description: 'تم التحديث بنجاح' })
-  @ApiNotFoundResponse({ description: 'التاجر غير موجود' })
-  @ApiForbiddenResponse({ description: 'ممنوع على المستخدم تعديل غيره' })
-  @ApiUnauthorizedResponse()
   update(
     @Param('id') id: string,
     @Body() dto: UpdateMerchantDto,
     @Request() req: RequestWithUser,
   ) {
     const user = req.user;
-    if (user.role !== 'ADMIN' && user.userId !== id) {
-      throw new HttpException('ممنوع', HttpStatus.FORBIDDEN);
-    }
-    return this.svc.update(id, dto);
+
+    return this.svc.findOne(id).then((merchant) => {
+      if (user.role !== 'ADMIN' && user.userId !== merchant.userId.toString()) {
+        throw new HttpException('ممنوع', HttpStatus.FORBIDDEN);
+      }
+
+      return this.svc.update(id, dto);
+    });
   }
 
   @Delete(':id')

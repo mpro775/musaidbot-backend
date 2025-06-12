@@ -14,6 +14,7 @@ import {
   UseInterceptors,
   ClassSerializerInterceptor,
   BadRequestException,
+  Query,
 } from '@nestjs/common';
 import { plainToInstance } from 'class-transformer';
 import { Types } from 'mongoose';
@@ -144,24 +145,14 @@ export class ProductsController {
   })
   @ApiForbiddenResponse({ description: 'ممنوع: دور المستخدم غير كافٍ' })
   async findAll(
-    @Request() req: RequestWithUser,
+    @Query('merchantId') merchantId: string,
   ): Promise<ProductResponseDto[]> {
-    if (req.user.role !== 'MERCHANT' && req.user.role !== 'ADMIN') {
-      throw new ForbiddenException('Insufficient role');
+    if (!merchantId) {
+      throw new BadRequestException('merchantId is required');
     }
 
-    const merchantIdStr = req.user.merchantId;
-    if (!merchantIdStr) {
-      throw new BadRequestException('merchantId missing in token payload');
-    }
-
-    // حوّل النص إلى ObjectId قبل الاستعلام
-    const merchantObjectId = new Types.ObjectId(merchantIdStr);
-
-    // جلب المستندات الحقيقية
+    const merchantObjectId = new Types.ObjectId(merchantId);
     const docs = await this.productsService.findAllByMerchant(merchantObjectId);
-    // (اختياري) لوج للتأكد
-    console.log(`Found ${docs.length} products for merchant ${merchantIdStr}`);
 
     return plainToInstance(ProductResponseDto, docs);
   }

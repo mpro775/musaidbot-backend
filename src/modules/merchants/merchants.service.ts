@@ -98,11 +98,19 @@ export class MerchantsService {
 
   // تحديث بيانات التاجر
   async update(id: string, dto: UpdateMerchantDto): Promise<MerchantDocument> {
+    console.log('🟡 تحديث التاجر', id, dto);
+
     const updated = await this.merchantModel
       .findByIdAndUpdate(id, dto, { new: true })
       .exec();
-    if (!updated) throw new NotFoundException('Merchant not found');
-    updated.finalPromptTemplate = this.buildPromptFromConfig(updated);
+
+    if (!updated) {
+      console.error('🔴 لم يتم العثور على التاجر');
+      throw new NotFoundException('Merchant not found');
+    }
+
+    updated.set('finalPromptTemplate', this.buildPromptFromConfig(updated));
+    await updated.save();
 
     return updated;
   }
