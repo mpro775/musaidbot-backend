@@ -22,7 +22,6 @@ import { AuthModule } from './modules/auth/auth.module';
 import { UsersModule } from './modules/users/users.module';
 import { ProductsModule } from './modules/products/products.module';
 import { MerchantsModule } from './modules/merchants/merchants.module';
-import { ConversationsModule } from './modules/conversations/conversations.module';
 import { PlansModule } from './modules/plans/plans.module';
 import { ScraperModule } from './modules/scraper/scraper.module';
 
@@ -33,6 +32,7 @@ import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { MessagingModule } from './modules/messaging/message.module';
 import { RedisConfig } from './config/redis.config';
 import { RedisModule } from './config/redis.module';
+import { OffersModule } from './modules/offers/offers.module';
 
 @Module({
   imports: [
@@ -91,8 +91,8 @@ import { RedisModule } from './config/redis.module';
     ProductsModule,
     MessagingModule,
     MerchantsModule,
-    ConversationsModule,
     PlansModule,
+    OffersModule,
     WebhooksModule,
     ScraperModule,
     AnalyticsModule,
