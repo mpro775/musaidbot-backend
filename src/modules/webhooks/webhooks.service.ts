@@ -1,9 +1,18 @@
 // src/modules/webhooks/webhooks.service.ts
-import { Injectable, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  BadRequestException,
+  InternalServerErrorException,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
 import { Webhook, WebhookDocument } from './schemas/webhook.schema';
 import { MessageService } from '../messaging/message.service';
+import { MerchantsService } from '../merchants/merchants.service';
+import { ProductsService } from '../products/products.service';
+import { PromptBuilderService } from '../prompt/prompt-builder.service';
+import { LlmProxyService } from '../llm/llm-proxy.service';
+import { TelegramService } from '../telegram/telegram.service'; // تأكد من إضافة خدمة تيليجرام!
 
 @Injectable()
 export class WebhooksService {
@@ -11,39 +20,83 @@ export class WebhooksService {
     private readonly messageService: MessageService,
     @InjectModel(Webhook.name)
     private readonly webhookModel: Model<WebhookDocument>,
+    private readonly merchantsService: MerchantsService,
+    private readonly productsService: ProductsService,
+    private readonly promptBuilder: PromptBuilderService,
+    private readonly llmProxyService: LlmProxyService,
+    private readonly telegramService: TelegramService, // Inject TelegramService هنا
   ) {}
 
-  async handleEvent(eventType: string, payload: any) {
-    const { merchantId, from, messageText, metadata } = payload;
-
-    if (!merchantId || !from || !messageText) {
-      throw new BadRequestException(`Invalid payload for ${eventType}`);
+  async handleMessage(channel: string, merchantId: string, body: any) {
+    // جلب بيانات التاجر (من قاعدة البيانات)
+    const merchant = await this.merchantsService.findOne(merchantId);
+    if (!merchant) {
+      throw new BadRequestException('Merchant not found');
     }
 
-    const channel = eventType.replace('_incoming', '');
+    try {
+      // استخراج chatId للعميل من تيليجرام
+      const chatId = body.message?.chat?.id?.toString();
+      const text = body.message?.text || '';
 
-    // 1. تخزين الحدث الخام
-    await this.webhookModel.create({
-      eventType,
-      payload: JSON.stringify(payload),
-      receivedAt: new Date(),
-    });
+      // جلب المنتجات لهذا التاجر
+      const products = await this.productsService.findAllByMerchant(
+        new Types.ObjectId(merchantId),
+      );
 
-    // 2. إنشاء أو تحديث الجلسة وتخزين الرسالة
-    await this.messageService.createOrAppend({
-      merchantId,
-      sessionId: from, // الهاتف كمفتاح الجلسة
-      channel,
-      messages: [
-        {
-          role: 'customer',
-          text: messageText,
-          metadata: metadata || {},
-        },
-      ],
-    });
+      // بناء البرومبت
+      const prompt = this.promptBuilder.buildPrompt({
+        merchant,
+        products,
+        message: text,
+        // chatHistory: [...], // لو تريد إضافتها مستقبلاً
+      });
 
-    // 3. إعادة sessionId لاستخدامه في n8n (بدلًا من conversationId)
-    return { sessionId: from };
+      // استدعاء الذكاء الاصطناعي
+      const aiResponse = await this.llmProxyService.sendPrompt(prompt, {
+        model: 'gemini-1.5-flash-latest',
+        temperature: 0.4,
+        maxTokens: 1024,
+      });
+
+      // حفظ سجل المحادثة (العميل + الذكاء الاصطناعي)
+      await this.messageService.createOrAppend({
+        merchantId,
+        sessionId: chatId, // اجعل sessionId هو chatId العميل
+        channel,
+        messages: [
+          {
+            role: 'customer',
+            text,
+            timestamp: new Date(),
+            metadata: body.metadata || {},
+          },
+          {
+            role: 'ai',
+            text: aiResponse,
+            timestamp: new Date(),
+            metadata: { prompt },
+          },
+        ],
+      });
+
+      // طباعة لمراجعة البرومبت والبيانات
+      console.log('PROMPT ====>\n', prompt);
+      console.log(`Received from ${channel} for merchant ${merchantId}:`, body);
+
+      // إرسال الرد للعميل نفسه على تيليجرام
+      if (channel === 'telegram' && chatId) {
+        await this.telegramService.sendMessage(
+          merchant.channelConfig?.telegram?.token,
+          chatId,
+          aiResponse,
+        );
+      }
+
+      return { status: 'ok', merchant, products, aiResponse };
+    } catch (error) {
+      console.error('Webhook Error: ', error);
+      throw new InternalServerErrorException(error.message || error);
+    }
   }
 }

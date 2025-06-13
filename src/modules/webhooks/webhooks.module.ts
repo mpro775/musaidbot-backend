@@ -6,16 +6,24 @@ import { WebhooksService } from './webhooks.service';
 import { WebhooksController } from './webhooks.controller';
 import { Webhook, WebhookSchema } from './schemas/webhook.schema';
 
-import { ConversationsModule } from '../conversations/conversations.module';
 import { MessagingModule } from '../messaging/message.module';
+import { MerchantsModule } from '../merchants/merchants.module';
+import { ProductsModule } from '../products/products.module';
+import { PromptModule } from '../prompt/prompt.module';
+import { LlmModule } from '../llm/llm.module';
+import { TelegramModule } from '../telegram/telegram.module';
 
 @Module({
   imports: [
     // فقط موديل Webhook لتخزين الأحداث الواردة
     MongooseModule.forFeature([{ name: Webhook.name, schema: WebhookSchema }]),
+    MerchantsModule,
+    ProductsModule,
+    PromptModule,
+    LlmModule,
+    TelegramModule,
 
     // وحدات الاعتمادية
-    ConversationsModule, // لضمان توفر ensureConversation
     MessagingModule, // لحفظ الرسائل (MessageService)
   ],
   providers: [

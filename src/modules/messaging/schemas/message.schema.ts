@@ -17,7 +17,7 @@ export class MessageSession {
   @Prop({
     type: [
       {
-        role: { type: String, enum: ['customer', 'bot'], required: true },
+        role: { type: String, enum: ['customer', 'bot', 'ai'], required: true },
         text: { type: String, required: true },
         timestamp: { type: Date, required: true },
         metadata: { type: Object, default: {} },
@@ -26,10 +26,11 @@ export class MessageSession {
     default: [],
   })
   messages: {
-    role: 'customer' | 'bot';
+    role: 'customer' | 'ai' | 'bot';
     text: string;
     timestamp: Date;
     metadata?: Record<string, any>;
+    aiResponseId?: string;
   }[];
 }
 
