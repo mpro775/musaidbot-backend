@@ -61,6 +61,42 @@ export class ProductsService {
     }));
   }
 
+  async searchProducts(
+    merchantId: string | Types.ObjectId,
+    query: string,
+  ): Promise<ProductDocument[]> {
+    const mId =
+      typeof merchantId === 'string'
+        ? new Types.ObjectId(merchantId)
+        : merchantId;
+
+    // 1) Exact match: الاسم يتضمن الجملة بالكامل (case-insensitive)
+    const exactMatches = await this.productModel
+      .find({
+        merchantId: mId,
+        name: { $regex: `^${escapeRegExp(query)}$`, $options: 'i' },
+      })
+      .lean()
+      .exec();
+    if (exactMatches.length) {
+      return exactMatches;
+    }
+
+    // 2) Text search (تحتاج إنشاء Text Index على name و description مسبقًا):
+    //    db.products.createIndex({ name: "text", description: "text" })
+    const textMatches = await this.productModel
+      .find(
+        { merchantId: mId, $text: { $search: query }, isAvailable: true },
+        { score: { $meta: 'textScore' } },
+      )
+      .sort({ score: { $meta: 'textScore' } })
+      .limit(10)
+      .lean()
+      .exec();
+
+    return textMatches;
+  }
+
   // **هنا**: نجد أنّ return type هو ProductDocument
   async findOne(id: string): Promise<ProductDocument> {
     const prod = await this.productModel.findById(id).exec();
@@ -121,4 +157,11 @@ export class ProductsService {
       }
     }
   }
+}
+
+/**
+ * هروب من الأحرف الخاصة في Regex
+ */
+function escapeRegExp(s: string) {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }

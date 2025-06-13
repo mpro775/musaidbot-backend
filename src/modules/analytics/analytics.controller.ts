@@ -1,9 +1,13 @@
 import { Controller, Get, Query } from '@nestjs/common';
 import { AnalyticsService } from './analytics.service';
+import { MissingQueryService } from './missing-query.service';
 
 @Controller('analytics')
 export class AnalyticsController {
-  constructor(private readonly analyticsService: AnalyticsService) {}
+  constructor(
+    private readonly analyticsService: AnalyticsService,
+    private readonly missingQueryService: MissingQueryService,
+  ) {}
 
   @Get('session-count')
   async getSessionCount(
@@ -71,6 +75,23 @@ export class AnalyticsController {
     return this.analyticsService.topCustomerKeywords(
       merchantId,
       Number(limit) || 20,
+    );
+  }
+  /** عدد الاستفسارات الفاشلة مجمّعة حسب النوع */
+  @Get('missing-count')
+  async getMissingCount(@Query('merchantId') merchantId: string) {
+    return this.missingQueryService.countByType(merchantId);
+  }
+
+  /** أكثر الأسئلة الفاشلة تكرارًا */
+  @Get('missing-top-questions')
+  async getTopMissingQuestions(
+    @Query('merchantId') merchantId: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.missingQueryService.topQuestions(
+      merchantId,
+      Number(limit) || 10,
     );
   }
 }

@@ -54,6 +54,21 @@ export class CreateMerchantDto {
   @IsString()
   businessDescription?: string;
 
+  @ApiPropertyOptional({ description: 'سياسة الإرجاع (اختياري)' })
+  @IsOptional()
+  @IsString()
+  returnPolicy?: string;
+
+  @ApiPropertyOptional({ description: 'سياسة الاستبدال (اختياري)' })
+  @IsOptional()
+  @IsString()
+  exchangePolicy?: string;
+
+  @ApiPropertyOptional({ description: 'سياسة الشحن والتوصيل (اختياري)' })
+  @IsOptional()
+  @IsString()
+  shippingPolicy?: string;
+
   @ApiPropertyOptional({ description: 'اللهجة المفضلة' })
   @IsOptional()
   @IsString()

@@ -79,6 +79,16 @@ export class Merchant {
   @Prop({ default: () => new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) })
   subscriptionExpiresAt: Date;
 
+  // سياسات المتجر:
+  @Prop({ required: false })
+  returnPolicy?: string; // سياسة الإرجاع
+
+  @Prop({ required: false })
+  exchangePolicy?: string; // سياسة الاستبدال
+
+  @Prop({ required: false })
+  shippingPolicy?: string; // سياسة الشحن والتوصيل
+
   @Prop({ type: Types.ObjectId, ref: 'User', required: true })
   userId: Types.ObjectId;
 
@@ -94,11 +104,13 @@ export class Merchant {
 
 export const MerchantSchema = SchemaFactory.createForClass(Merchant);
 MerchantSchema.pre<MerchantDocument>('save', function (next) {
-  // إذا تغيرت الـ name أو الـ promptConfig أو الحقل جديد
   if (
     this.isNew ||
     this.isModified('name') ||
-    this.isModified('promptConfig')
+    this.isModified('promptConfig') ||
+    this.isModified('returnPolicy') ||
+    this.isModified('exchangePolicy') ||
+    this.isModified('shippingPolicy')
   ) {
     this.finalPromptTemplate = buildPromptFromMerchant(this);
   }

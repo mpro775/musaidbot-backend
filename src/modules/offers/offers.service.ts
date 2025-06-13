@@ -55,6 +55,22 @@ export class OffersService {
     await this.scrapeQueue.addJob(jobData);
   }
 
+  async searchOffers(
+    merchantId: string | Types.ObjectId,
+    query: string,
+  ): Promise<OfferDocument[]> {
+    const mId =
+      typeof merchantId === 'string'
+        ? new Types.ObjectId(merchantId)
+        : merchantId;
+    const regex = new RegExp(query, 'i');
+    return this.offerModel
+      .find({ merchantId: mId, title: regex, isActive: true })
+      .limit(10)
+      .lean()
+      .exec();
+  }
+
   /**
    * جلب جميع العروض لتاجر محدد
    */
