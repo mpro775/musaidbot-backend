@@ -86,14 +86,14 @@ export class WebhooksService {
 
       // إرسال الرد للعميل نفسه على تيليجرام
       if (channel === 'telegram' && chatId) {
-        await this.telegramService.sendMessage(
-          merchant.channelConfig?.telegram?.token,
-          chatId,
-          aiResponse,
-        );
-      }
+        const token = merchant.channelConfig?.telegram?.token;
+        if (!token) throw new Error('Telegram token is missing!');
+        if (!chatId) throw new Error('chatId is missing!');
 
-      return { status: 'ok', merchant, products, aiResponse };
+        await this.telegramService.sendMessage(token, chatId, aiResponse);
+
+        return { status: 'ok', merchant, products, aiResponse };
+      }
     } catch (error) {
       console.error('Webhook Error: ', error);
       throw new InternalServerErrorException(error.message || error);
