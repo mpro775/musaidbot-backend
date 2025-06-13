@@ -7,12 +7,14 @@ import { ProductsService } from './products.service';
 import { ProductsController } from './products.controller';
 import { ScrapeQueue } from './scrape.queue';
 import { ScraperModule } from '../scraper/scraper.module';
+import { RemindersModule } from '../reminders/reminders.module';
 
 @Module({
   imports: [
     MongooseModule.forFeature([{ name: Product.name, schema: ProductSchema }]),
     forwardRef(() => ScraperModule),
     BullModule.registerQueue({ name: 'scrape' }),
+    RemindersModule,
   ],
   providers: [ProductsService, ScrapeQueue],
   controllers: [ProductsController],

@@ -13,6 +13,7 @@ import { ProductsService } from '../products/products.service';
 import { PromptBuilderService } from '../prompt/prompt-builder.service';
 import { LlmProxyService } from '../llm/llm-proxy.service';
 import { TelegramService } from '../telegram/telegram.service';
+import { RemindersService } from '../reminders/reminders.service';
 
 @Injectable()
 export class WebhooksService {
@@ -25,6 +26,7 @@ export class WebhooksService {
     private readonly promptBuilder: PromptBuilderService,
     private readonly llmProxyService: LlmProxyService,
     private readonly telegramService: TelegramService,
+    private readonly remindersService: RemindersService,
   ) {}
 
   async handleMessage(channel: string, merchantId: string, body: any) {
@@ -54,7 +56,63 @@ export class WebhooksService {
         merchantId,
         { model: 'gemini-1.5-flash-latest', temperature: 0.4, maxTokens: 1024 },
       );
+      const unavailableMatch = /غير متوفر/i.test(aiResponse);
+      if (unavailableMatch) {
+        // احفظ المنتج المقصود في الـ session (مثلاً باستخدام MessageService metadata)
+        const missingProduct = await this.productsService.findByName(
+          merchantId,
+          userText,
+        );
+        if (missingProduct) {
+          // اطلب تأكيد التنبيه
+          const token = merchant.channelConfig?.telegram?.token;
+          if (!token) throw new Error('Telegram token is missing!');
 
+          await this.telegramService.sendMessage(
+            token,
+            chatId,
+            `المنتج "${missingProduct.name}" غير متوفر حالياً. هل ترغب بإشعارك عند توفره؟ (أرسل "نعم" أو "لا")`,
+          );
+
+          // خزّن في الجلسة ID المنتج المنتظر
+          await this.messageService.createOrAppend({
+            merchantId,
+            sessionId: chatId,
+            channel,
+            messages: [
+              {
+                role: 'bot',
+                text: `PENDING_REMINDER:${missingProduct.id}`,
+              },
+            ],
+          });
+        }
+        return { status: 'pending_reminder' };
+      }
+      if (userText.trim() === 'نعم') {
+        // ابحث في history عن الرسالة التي خزنت PENDING_REMINDER
+        const session = await this.messageService.findBySession(chatId);
+        const pending = session?.messages.find((m) =>
+          m.text.startsWith('PENDING_REMINDER:'),
+        );
+        if (pending) {
+          const productId = pending.text.split(':')[1];
+          await this.remindersService.subscribe(
+            merchantId,
+            chatId,
+            channel,
+            productId,
+          );
+          const token = merchant.channelConfig?.telegram?.token;
+          if (!token) throw new Error('Telegram token is missing!');
+          await this.telegramService.sendMessage(
+            token,
+            chatId,
+            `تم تسجيل تنبيه توفر المنتج.`,
+          );
+          return { status: 'subscribed' };
+        }
+      }
       // 3️⃣ حفظ سجل المحادثة (العميل + الذكاء الاصطناعي)
       await this.messageService.createOrAppend({
         merchantId,

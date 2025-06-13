@@ -239,7 +239,13 @@ export class ProductsController {
       excludeExtraneousValues: true,
     });
   }
-
+  @Post(':id/availability')
+  async updateAvailability(
+    @Param('id') id: string,
+    @Body('isAvailable') isAvailable: boolean,
+  ) {
+    return this.productsService.setAvailability(id, isAvailable);
+  }
   @Delete(':id')
   @ApiParam({ name: 'id', type: 'string', description: 'معرّف المنتج' })
   @ApiOperation({ summary: 'حذف منتج' })

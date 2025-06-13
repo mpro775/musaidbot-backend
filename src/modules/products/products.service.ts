@@ -6,6 +6,7 @@ import { Product, ProductDocument } from './schemas/product.schema';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { ScrapeQueue } from './scrape.queue';
 import { Cron, CronExpression } from '@nestjs/schedule';
+import { RemindersService } from '../reminders/reminders.service';
 
 @Injectable()
 export class ProductsService {
@@ -13,6 +14,7 @@ export class ProductsService {
     @InjectModel(Product.name)
     private readonly productModel: Model<ProductDocument>,
     private readonly scrapeQueue: ScrapeQueue,
+    private readonly remindersService: RemindersService, // ← inject here
   ) {}
 
   async create(
@@ -60,7 +62,18 @@ export class ProductsService {
       merchantId: doc.merchantId.toString(),
     }));
   }
-
+  // البحث حسب الاسم مهما كان متوفرًا أو لا
+  async findByName(
+    merchantId: string,
+    name: string,
+  ): Promise<ProductDocument | null> {
+    const mId = new Types.ObjectId(merchantId);
+    const regex = new RegExp(name, 'i');
+    return this.productModel
+      .findOne({ merchantId: mId, name: regex })
+      .lean()
+      .exec();
+  }
   async searchProducts(
     merchantId: string | Types.ObjectId,
     query: string,
@@ -97,6 +110,20 @@ export class ProductsService {
     return textMatches;
   }
 
+  async setAvailability(productId: string, isAvailable: boolean) {
+    const pId = new Types.ObjectId(productId);
+    const product = await this.productModel
+      .findByIdAndUpdate(pId, { isAvailable }, { new: true })
+      .lean()
+      .exec();
+
+    if (product && isAvailable) {
+      // now that it's turned available, notify any subscribers
+      await this.remindersService.notifyIfAvailable(productId);
+    }
+
+    return product;
+  }
   // **هنا**: نجد أنّ return type هو ProductDocument
   async findOne(id: string): Promise<ProductDocument> {
     const prod = await this.productModel.findById(id).exec();

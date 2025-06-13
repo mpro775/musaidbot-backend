@@ -3,51 +3,31 @@ import { Injectable } from '@nestjs/common';
 
 @Injectable()
 export class PromptBuilderService {
-  buildPrompt({
-    merchant,
-    message,
-    chatHistory = [],
-  }: {
+  /**
+   * يبني البرومبت الكامل باستخدام:
+   * - merchant.finalPromptTemplate (يحتوي السياسات وتعليمات المنتجات/العروض)
+   * - سجل المحادثة (اختياري)
+   * - سؤال العميل
+   * - تعليمات استدعاء الأدوات (Tool Calling)
+   */
+  buildPrompt(params: {
     merchant: any;
     message: string;
-    chatHistory?: any[];
+    chatHistory?: Array<{ role: 'customer' | 'ai'; text: string }>;
   }): string {
-    // 1. القالب الأساسي + سياسات المتجر
-    let prompt: string =
-      merchant.finalPromptTemplate ||
-      `
-أنت مساعد ذكي لخدمة العملاء في ${merchant.name}.
-مهمتك الرد بسرعة وبدقة ولباقة.
+    const { merchant, message, chatHistory = [] } = params;
 
-## معلومات المتجر:
-- اسم المتجر: ${merchant.name}
-- التخصص: ${merchant.businessType}
-- الوصف: ${merchant.businessDescription || '-'}
+    // 1) خذ الـ finalPromptTemplate (وقد أُنشئ في pre-save hook)
+    //    إذا كان فارغًا، ارفع خطأ حتى تعرف أنك نسيت إعداده.
+    let prompt: string = merchant.finalPromptTemplate;
+    if (!prompt) {
+      throw new Error(
+        'finalPromptTemplate is missing on merchant. Make sure it is generated on save.',
+      );
+    }
 
-## سياسات المتجر:
-${
-  merchant.returnPolicy
-    ? `- سياسة الإرجاع: ${merchant.returnPolicy}`
-    : '- لا توجد سياسة إرجاع مفعّلة.'
-}
-${
-  merchant.exchangePolicy
-    ? `- سياسة الاستبدال: ${merchant.exchangePolicy}`
-    : '- لا توجد سياسة استبدال مفعّلة.'
-}
-${
-  merchant.shippingPolicy
-    ? `- سياسة الشحن: ${merchant.shippingPolicy}`
-    : '- لا توجد سياسة شحن مفعّلة.'
-}
-
-إذا سُئلت عن أي سياسة غير موجودة، اعتذر وأبلغ العميل بأنها غير متوفرة حاليًا.
-
-دائمًا أنهِ ردك بتوقيع المتجر: "${merchant.name} - فريق خدمة العملاء"
-`;
-
-    // 2. دمج سجل المحادثة إن وجد
-    if (chatHistory.length) {
+    // 2) دمج سجل المحادثة إن وجد
+    if (chatHistory.length > 0) {
       const historyBlock = chatHistory
         .map(
           (m) => `[${m.role === 'customer' ? 'العميل' : 'المساعد'}]: ${m.text}`,
@@ -56,10 +36,11 @@ ${
       prompt += `\n\n## سجل المحادثة:\n${historyBlock}\n`;
     }
 
-    // 3. إضافة سؤال العميل
+    // 3) إضافة سؤال العميل
     prompt += `\n\n## سؤال العميل:\n${message}\n`;
 
-    // 4. تعليمات استدعاء الأدوات (Tool Calling)
+    // 4) تعليمات استدعاء الأدوات فقط إذا لم تكن مضمَّنة في finalPromptTemplate
+    //    (يمكنك إزالة هذا القسم إذا تم تضمينه ضمن buildPromptFromConfig)
     prompt += `
 *عند الحاجة لبيانات المنتجات أو العروض، استدعِ إحدى الدوال التالية بصيغة JSON فقط دون شرح:*
 - {"function":"search_products","arguments":{"query":"نص البحث"}}
