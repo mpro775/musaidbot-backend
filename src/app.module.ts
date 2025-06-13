@@ -33,7 +33,9 @@ import { MessagingModule } from './modules/messaging/message.module';
 import { RedisConfig } from './config/redis.config';
 import { RedisModule } from './config/redis.module';
 import { OffersModule } from './modules/offers/offers.module';
-
+import { RemindersModule } from './modules/reminders/reminders.module';
+import { LlmModule } from './modules/llm/llm.module';
+import { TelegramModule } from './modules/telegram/telegram.module';
 @Module({
   imports: [
     // Logger (Pino)
@@ -95,6 +97,9 @@ import { OffersModule } from './modules/offers/offers.module';
     OffersModule,
     WebhooksModule,
     ScraperModule,
+    RemindersModule,
+    LlmModule,
+    TelegramModule,
     AnalyticsModule,
   ],
   providers: [

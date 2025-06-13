@@ -14,7 +14,7 @@ import { RemindersModule } from '../reminders/reminders.module';
     MongooseModule.forFeature([{ name: Product.name, schema: ProductSchema }]),
     forwardRef(() => ScraperModule),
     BullModule.registerQueue({ name: 'scrape' }),
-    RemindersModule,
+    forwardRef(() => RemindersModule),
   ],
   providers: [ProductsService, ScrapeQueue],
   controllers: [ProductsController],

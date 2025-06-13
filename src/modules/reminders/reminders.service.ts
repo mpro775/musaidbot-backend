@@ -1,5 +1,5 @@
 // src/modules/reminders/reminders.service.ts
-import { Injectable, Logger } from '@nestjs/common';
+import { forwardRef, Inject, Injectable, Logger } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { Reminder, ReminderDocument } from './schemas/reminder.schema';
@@ -14,6 +14,7 @@ export class RemindersService {
   constructor(
     @InjectModel(Reminder.name)
     private readonly reminderModel: Model<ReminderDocument>,
+    @Inject(forwardRef(() => ProductsService))
     private readonly productsService: ProductsService,
     private readonly merchantsService: MerchantsService,
     private readonly telegramService: TelegramService,

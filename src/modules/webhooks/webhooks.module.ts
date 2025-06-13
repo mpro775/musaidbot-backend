@@ -1,5 +1,5 @@
 // src/modules/webhooks/webhooks.module.ts
-import { Module } from '@nestjs/common';
+import { forwardRef, Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 
 import { WebhooksService } from './webhooks.service';
@@ -12,6 +12,7 @@ import { ProductsModule } from '../products/products.module';
 import { PromptModule } from '../prompt/prompt.module';
 import { LlmModule } from '../llm/llm.module';
 import { TelegramModule } from '../telegram/telegram.module';
+import { RemindersModule } from '../reminders/reminders.module';
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { TelegramModule } from '../telegram/telegram.module';
     PromptModule,
     LlmModule,
     TelegramModule,
+    forwardRef(() => RemindersModule), // ✅ مهم إذا في دورة
 
     // وحدات الاعتمادية
     MessagingModule, // لحفظ الرسائل (MessageService)
