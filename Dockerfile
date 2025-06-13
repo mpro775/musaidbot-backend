@@ -1,42 +1,52 @@
 FROM node:18-alpine AS builder
 
-# تثبيت تبعيات Playwright
+# تثبيت التبعيات الأساسية لـ Playwright + Chromium
 RUN apk add --no-cache \
-    chromium \
+    bash \
+    curl \
+    wget \
     nss \
     freetype \
+    freetype-dev \
     harfbuzz \
     ca-certificates \
     ttf-freefont \
-    libgcc \
     libstdc++ \
-    dumb-init
+    libgcc \
+    chromium \
+    dumb-init \
+    udev \
+    mesa-gl \
+    && rm -rf /var/cache/*
+
+ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
+    PLAYWRIGHT_BROWSERS_PATH=/usr/lib/chromium
 
 WORKDIR /usr/src/app
 
-# نسخ جميع الملفات الضرورية
+# نسخ الملفات
 COPY package*.json ./
 COPY tsconfig*.json ./
 COPY nest-cli.json ./
-COPY src/ src/
+COPY src/ ./src/
 
 # تثبيت التبعيات
 RUN npm ci
-RUN npx playwright install --with-deps
 
-# فحص الإعدادات
+# تثبيت المتصفحات بدون `--with-deps`
+RUN npx playwright install chromium
+
+# فحص التكوين
 RUN echo "🔍 فحص ملفات التكوين:"
 RUN cat tsconfig.json || echo "لا يوجد tsconfig.json"
 RUN cat tsconfig.build.json || echo "لا يوجد tsconfig.build.json"
 RUN cat nest-cli.json || echo "لا يوجد nest-cli.json"
-RUN ls -la /root/.cache/ms-playwright/chromium*
+RUN ls -la /root/.cache/ms-playwright/chromium* || echo "لم يتم العثور على Chromium"
 
 # البناء
 RUN npm run build -- --webpack=false
 
-# أو: RUN npx tsc -p tsconfig.build.json
-
-# تشخيص النتيجة
+# محتويات البناء
 RUN echo "✅ محتويات dist:" && ls -l dist
 RUN echo "🔎 البحث عن main.js:" && find . -name main.js
 
