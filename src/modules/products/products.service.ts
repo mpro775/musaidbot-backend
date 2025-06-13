@@ -83,31 +83,64 @@ export class ProductsService {
         ? new Types.ObjectId(merchantId)
         : merchantId;
 
-    // 1) Exact match: الاسم يتضمن الجملة بالكامل (case-insensitive)
-    const exactMatches = await this.productModel
+    const normalized = normalizeQuery(query);
+    const regex = new RegExp(escapeRegExp(normalized), 'i');
+
+    // 1️⃣ محاولة التطابق الجزئي
+    const partialMatches = await this.productModel
       .find({
         merchantId: mId,
-        name: { $regex: `^${escapeRegExp(query)}$`, $options: 'i' },
+        isAvailable: true,
+        $or: [
+          { name: regex },
+          { description: regex },
+          { category: regex },
+          { keywords: { $in: [normalized] } },
+        ],
       })
-      .lean()
-      .exec();
-    if (exactMatches.length) {
-      return exactMatches;
+      .limit(10)
+      .lean();
+
+    if (partialMatches.length > 0) return partialMatches;
+
+    // 2️⃣ محاولة البحث النصي الكامل
+    try {
+      const textMatches = await this.productModel
+        .find(
+          {
+            merchantId: mId,
+            $text: { $search: normalized },
+            isAvailable: true,
+          },
+          { score: { $meta: 'textScore' } },
+        )
+        .sort({ score: { $meta: 'textScore' } })
+        .limit(10)
+        .lean();
+      if (textMatches.length > 0) return textMatches;
+    } catch (err) {
+      console.warn('[searchProducts] Text index not found:', err.message);
     }
 
-    // 2) Text search (تحتاج إنشاء Text Index على name و description مسبقًا):
-    //    db.products.createIndex({ name: "text", description: "text" })
-    const textMatches = await this.productModel
-      .find(
-        { merchantId: mId, $text: { $search: query }, isAvailable: true },
-        { score: { $meta: 'textScore' } },
-      )
-      .sort({ score: { $meta: 'textScore' } })
-      .limit(10)
-      .lean()
-      .exec();
+    // 3️⃣ fallback: تحليل كل كلمة على حدة (token match)
+    const tokens = normalized.split(/\s+/);
+    const tokenRegexes = tokens.map((t) => new RegExp(escapeRegExp(t), 'i'));
 
-    return textMatches;
+    const tokenMatches = await this.productModel
+      .find({
+        merchantId: mId,
+        isAvailable: true,
+        $or: [
+          { name: { $in: tokenRegexes } },
+          { description: { $in: tokenRegexes } },
+          { category: { $in: tokenRegexes } },
+          { keywords: { $in: tokens } },
+        ],
+      })
+      .limit(10)
+      .lean();
+
+    return tokenMatches;
   }
 
   async setAvailability(productId: string, isAvailable: boolean) {
@@ -139,6 +172,22 @@ export class ProductsService {
       .exec();
     if (!updated) throw new NotFoundException('Product not found');
     return updated;
+  }
+  async getFallbackProducts(
+    merchantId: string | Types.ObjectId,
+    limit = 20,
+  ): Promise<ProductDocument[]> {
+    const mId =
+      typeof merchantId === 'string'
+        ? new Types.ObjectId(merchantId)
+        : merchantId;
+
+    return this.productModel
+      .find({ merchantId: mId, isAvailable: true })
+      .sort({ lastFetchedAt: -1 }) // أو { createdAt: -1 } حسب ما يناسب
+      .limit(limit)
+      .lean()
+      .exec();
   }
 
   async remove(id: string): Promise<{ message: string }> {
@@ -191,4 +240,19 @@ export class ProductsService {
  */
 function escapeRegExp(s: string) {
   return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function normalizeQuery(raw: string): string {
+  return raw
+    .toLowerCase()
+    .replace(/[؟?]/g, '')
+    .replace(
+      /\b(هل|عندك|عندكم|فيه|يتوفر|أحتاج|أبي|ابغى|ممكن|وش|شو|ايش|لو سمحت)\b/gi,
+      '',
+    )
+    .replace(/\s+/g, ' ')
+    .replace(/كايبلات|كيبلات|كابلات|كابلات|كبلات/gi, 'كيبل')
+    .replace(/سماعات|سماعه|هيدفون/gi, 'سماعة')
+    .replace(/شواحن|شاحنات/gi, 'شاحن')
+    .trim();
 }

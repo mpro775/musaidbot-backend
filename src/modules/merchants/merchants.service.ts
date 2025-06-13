@@ -14,6 +14,7 @@ import { UpdateMerchantDto } from './dto/update-merchant.dto';
 import { UpdateChannelDto } from './dto/update-channel.dto';
 import { firstValueFrom } from 'rxjs';
 import { HttpService } from '@nestjs/axios';
+import { buildPromptFromMerchant } from './utils/prompt-builder';
 
 @Injectable()
 export class MerchantsService {
@@ -115,64 +116,9 @@ export class MerchantsService {
     if (!merchant) throw new NotFoundException('Merchant not found');
 
     // إضافة الحقل كخاصية افتراضية (بدون التأثير على قاعدة البيانات)
-    merchant.finalPromptTemplate = this.buildPromptFromConfig(merchant);
+    merchant.finalPromptTemplate = buildPromptFromMerchant(merchant);
 
     return merchant;
-  }
-
-  private buildPromptFromConfig(merchant: any): string {
-    const shopName = merchant.name || 'متجرنا';
-    const dialect = merchant.promptConfig?.dialect || 'فصحى';
-    const tone = merchant.promptConfig?.tone || 'احترافية';
-
-    let prompt = `أنت مساعد ذكي لخدمة العملاء في ${shopName}. مهمتك الرئيسية هي تقديم خدمة عملاء استثنائية مع الحفاظ على الصورة المهنية للمتجر.`;
-
-    // المعلومات الأساسية عن المتجر
-    prompt += `\n\n## معلومات المتجر:`;
-    prompt += `\n- اسم المتجر: ${shopName}`;
-    if (merchant.businessType) {
-      prompt += `\n- التخصص: ${merchant.businessType}`;
-    }
-    if (merchant.businessDescription) {
-      prompt += `\n- الوصف: ${merchant.businessDescription}`;
-    }
-
-    // أسلوب التواصل
-    prompt += `\n\n## أسلوب التواصل:`;
-    prompt += `\n- اللهجة: ${dialect}`;
-    prompt += `\n- النغمة: ${tone}`;
-    prompt += `\n- المستوى المهني: دائمًا محترف ولبق`;
-
-    // نظام الوصول إلى بيانات المنتجات
-    prompt += `\n\n## نظام بيانات المنتجات:`;
-    prompt += `\n- لديك وصول إلى نظام إدارة المنتجات عبر API`;
-    prompt += `\n- عند سؤال العميل عن منتج:`;
-    prompt += `\n  1. استخدم وظيفة search_products(اسم_المنتج) للحصول على البيانات`;
-    prompt += `\n  2. قدم للعميل المعلومات التالية:`;
-    prompt += `\n     * اسم المنتج الدقيق`;
-    prompt += `\n     * السعر الحالي`;
-    prompt += `\n     * الكمية المتاحة`;
-    prompt += `\n     * الرمز (SKU) إن وجد`;
-    prompt += `\n  3. إذا لم تجد المنتج: اعتذر واقترح بدائل مشابهة`;
-    prompt += `\n  4. عند طلب تفاصيل أكثر: قدم روابط أو صورًا من خلال generate_product_link(رمز_المنتج)`;
-
-    // التعليمات التشغيلية
-    prompt += `\n\n## التعليمات الأساسية:`;
-    prompt += `\n1. رحب بالعميل باسم المتجر وقدم المساعدة`;
-    prompt += `\n2. استخدم وظيفة البحث عن المنتجات للإجابة على الاستفسارات`;
-    prompt += `\n3. تأكد من تحديث الأسعار والكميات مباشرة من النظام`;
-    prompt += `\n4. عند عدم وجود إجابة: تعهد بالتواصل مع الفريق المختص`;
-    prompt += `\n5. حافظ على إجابات دقيقة ومحدثة`;
-
-    // معلومات اضافية
-    if (merchant.promptConfig?.template) {
-      prompt += `\n\n## تعليمات خاصة من صاحب المتجر:\n${merchant.promptConfig.template}`;
-    }
-
-    // التوقيع المهني
-    prompt += `\n\n===\nدائمًا أنهِ ردك بتوقيع المتجر: "${shopName} - فريق خدمة العملاء"`;
-
-    return prompt;
   }
 
   // تحديث بيانات التاجر
@@ -188,7 +134,7 @@ export class MerchantsService {
       throw new NotFoundException('Merchant not found');
     }
 
-    updated.set('finalPromptTemplate', this.buildPromptFromConfig(updated));
+    updated.set('finalPromptTemplate', buildPromptFromMerchant(updated));
     await updated.save();
 
     return updated;

@@ -10,6 +10,8 @@ export class Merchant {
   @Prop({ required: true })
   name: string;
 
+  @Prop({ type: [String], default: [] })
+  categories?: string[];
   @Prop({ required: false, unique: true, sparse: true })
   email?: string;
 

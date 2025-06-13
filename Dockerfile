@@ -22,13 +22,14 @@ COPY src/ src/
 
 # تثبيت التبعيات
 RUN npm ci
-RUN npx playwright install
+RUN npx playwright install --with-deps
 
 # فحص الإعدادات
 RUN echo "🔍 فحص ملفات التكوين:"
 RUN cat tsconfig.json || echo "لا يوجد tsconfig.json"
 RUN cat tsconfig.build.json || echo "لا يوجد tsconfig.build.json"
 RUN cat nest-cli.json || echo "لا يوجد nest-cli.json"
+RUN ls -la /root/.cache/ms-playwright/chromium*
 
 # البناء
 RUN npm run build -- --webpack=false

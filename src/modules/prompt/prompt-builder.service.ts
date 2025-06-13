@@ -4,11 +4,13 @@ import { Injectable } from '@nestjs/common';
 @Injectable()
 export class PromptBuilderService {
   /**
-   * يبني البرومبت الكامل باستخدام:
-   * - merchant.finalPromptTemplate (يحتوي السياسات وتعليمات المنتجات/العروض)
-   * - سجل المحادثة (اختياري)
-   * - سؤال العميل
-   * - تعليمات استدعاء الأدوات (Tool Calling)
+   * يبني برومبت المستخدم للـ LLM:
+   * 1) يبدأ بـ merchant.finalPromptTemplate الذي يحتوي:
+   *    - معلومات المتجر
+   *    - السياسات
+   *    - (ضمنياً) تعليمات استدعاء الأدوات دون ظهورها للعميل
+   * 2) يدمج سجل المحادثة (اختياري)
+   * 3) يضيف سؤال العميل فقط
    */
   buildPrompt(params: {
     merchant: any;
@@ -17,12 +19,11 @@ export class PromptBuilderService {
   }): string {
     const { merchant, message, chatHistory = [] } = params;
 
-    // 1) خذ الـ finalPromptTemplate (وقد أُنشئ في pre-save hook)
-    //    إذا كان فارغًا، ارفع خطأ حتى تعرف أنك نسيت إعداده.
+    // 1) أساس البرومبت من finalPromptTemplate
     let prompt: string = merchant.finalPromptTemplate;
     if (!prompt) {
       throw new Error(
-        'finalPromptTemplate is missing on merchant. Make sure it is generated on save.',
+        'finalPromptTemplate is missing on merchant. Ensure it is generated in the merchant schema pre-save hook.',
       );
     }
 
@@ -33,20 +34,12 @@ export class PromptBuilderService {
           (m) => `[${m.role === 'customer' ? 'العميل' : 'المساعد'}]: ${m.text}`,
         )
         .join('\n');
-      prompt += `\n\n## سجل المحادثة:\n${historyBlock}\n`;
+      prompt += `\n\n## سجل المحادثة:\n${historyBlock}`;
     }
 
-    // 3) إضافة سؤال العميل
-    prompt += `\n\n## سؤال العميل:\n${message}\n`;
+    // 3) إضافة سؤال العميل في النهاية
+    prompt += `\n\n## سؤال العميل:\n${message}`;
 
-    // 4) تعليمات استدعاء الأدوات فقط إذا لم تكن مضمَّنة في finalPromptTemplate
-    //    (يمكنك إزالة هذا القسم إذا تم تضمينه ضمن buildPromptFromConfig)
-    prompt += `
-*عند الحاجة لبيانات المنتجات أو العروض، استدعِ إحدى الدوال التالية بصيغة JSON فقط دون شرح:*
-- {"function":"search_products","arguments":{"query":"نص البحث"}}
-- {"function":"search_offers","arguments":{"query":"نص البحث"}}
-`;
-
-    return prompt.trim();
+    return prompt;
   }
 }

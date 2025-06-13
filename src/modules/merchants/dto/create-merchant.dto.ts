@@ -6,6 +6,7 @@ import {
   Matches,
   IsUrl,
   ValidateNested,
+  IsArray,
 } from 'class-validator';
 import { PromptConfigDto } from './prompt-config.dto';
 import { Type } from 'class-transformer'; // ✅ مهمة جداً!
@@ -64,6 +65,11 @@ export class CreateMerchantDto {
   @IsString()
   exchangePolicy?: string;
 
+  @ApiPropertyOptional({ description: 'الفئات / أقسام المنتجات' })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  categories?: string[];
   @ApiPropertyOptional({ description: 'سياسة الشحن والتوصيل (اختياري)' })
   @IsOptional()
   @IsString()
