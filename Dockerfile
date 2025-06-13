@@ -1,4 +1,4 @@
-FROM node:18-alpine
+FROM node:18-alpine AS builder
 
 # تثبيت تبعيات Playwright
 RUN apk add --no-cache \

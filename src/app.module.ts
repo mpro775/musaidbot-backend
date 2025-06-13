@@ -79,6 +79,7 @@ import { TelegramModule } from './modules/telegram/telegram.module';
             port: parseInt(parsed.port, 10),
             password: parsed.password || undefined,
             tls: parsed.protocol === 'rediss:' ? {} : undefined,
+            username: parsed.username || undefined, // ✅ هذا هو المطلوب
           },
         };
       },

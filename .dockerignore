@@ -1,14 +1,9 @@
-# تجاهل مجلدات غير ضرورية
 node_modules
+dist
 coverage
 .DS_Store
-*.log
-
-# تجاهل ملفات البيئة
 .env
-
-# ❗ لا تستبعد ملفات TypeScript أو إعدادات NestJS (src, tsconfig, nest-cli.json)
-# إذا كان لديك build في Docker، لا تضف:
-# src/
-# tsconfig*
-# nest-cli.json
+*.log
+uploads
+.cache
+test
